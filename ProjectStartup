@@ -28,16 +28,24 @@ information to assigned contractors at that site. This is all done with a secure
 lets any manager easily check in on or update operation tasks.
 
 Audience:
-Our application is targeted for corporate work environments. The app aims to create a 
-streamlined way to organize tasks. It is made for teams of employees that need 
-to efficiently communicate with each other.
+Our application is designed for corporate work environments where multiple teams need a clear and efficient 
+way to coordinate task-based operations. It is especially useful for managers and office staff in coordinating 
+with field employees and contractors, who work together across various disciplines and locations. The app 
+supports organizations that manage real-world worksites and need a centralized system to assign tasks, track progress,
+maintain operations and work history, and share privileged information with the people who need it in real time. 
+Using a Kanban-style task board with location tracking, allows for a user-friendly and secure application to help 
+teams improve communication, planning, and accountability, with a focus on workflow efficiency.
+
 
 Vision Statement:
+To create organizational tools for collaboration among teams.
 
 
 Development Methodology:
-
+Agile methodology
 
 Communication Plan:
-Thursdays around 5pm? Subject to change…
+Team meetings Thursdays 5pm, mostly Zoom
+TA meetings Monday 2:45pm, in-person/Zoom
+
 
