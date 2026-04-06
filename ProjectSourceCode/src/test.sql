@@ -1,12 +1,12 @@
 -- ============================================================
 -- test.sql
--- Quick insert + read test for all 4 tables
--- Run with: psql $DATABASE_URL -f validation_test.sql
--- or inside docker: docker exec -it <db_container> psql -U postgres -d users_db -f validation_test.sql
+-- Insert + read validation test for all 4 tables
+-- Run with:
+--   docker cp src/test.sql projectsourcecode-db-1:/test.sql
+--   docker exec -it projectsourcecode-db-1 psql -U postgres -d users_db -f /test.sql
 -- ============================================================
 
 -- ── Clean slate before testing ────────────────────────────
--- Removes any leftover test data so this file is safe to re-run
 DELETE FROM task_assignments WHERE user_id IN (SELECT id FROM users WHERE username = 'test_user');
 DELETE FROM tasks           WHERE title = 'Test Task';
 DELETE FROM users           WHERE username = 'test_user';
@@ -22,7 +22,6 @@ FROM worksites
 WHERE name = 'Test Worksite';
 
 -- ── 2. Insert a user ──────────────────────────────────────
--- worksite_id references the worksite we just inserted
 INSERT INTO users (username, email, password_hash, role, worksite_id)
 VALUES (
     'test_user',
@@ -38,7 +37,6 @@ FROM users
 WHERE username = 'test_user';
 
 -- ── 3. Insert a task ──────────────────────────────────────
--- created_by and worksite_id reference the user and worksite above
 INSERT INTO tasks (title, description, status, priority, created_by, worksite_id)
 VALUES (
     'Test Task',
@@ -55,7 +53,6 @@ FROM tasks
 WHERE title = 'Test Task';
 
 -- ── 4. Insert a task assignment ───────────────────────────
--- Links the test user to the test task
 INSERT INTO task_assignments (task_id, user_id, role)
 VALUES (
     (SELECT id FROM tasks WHERE title = 'Test Task'),
@@ -69,7 +66,6 @@ FROM task_assignments
 WHERE user_id = (SELECT id FROM users WHERE username = 'test_user');
 
 -- ── 5. Full join — confirm everything connects ────────────
--- This is the real validation — checks all 4 tables link correctly
 SELECT
     u.username,
     u.email,
@@ -84,12 +80,20 @@ JOIN tasks     t ON t.id = ta.task_id
 JOIN worksites w ON w.id = t.worksite_id
 WHERE u.username = 'test_user';
 
--- ── 6. Clean up test data ─────────────────────────────────
+-- ── 6. Row counts before cleanup ──────────────────────────
+SELECT 'worksites'        AS table_name, COUNT(*) AS row_count FROM worksites
+UNION ALL
+SELECT 'users',                           COUNT(*) FROM users
+UNION ALL
+SELECT 'tasks',                           COUNT(*) FROM tasks
+UNION ALL
+SELECT 'task_assignments',                COUNT(*) FROM task_assignments;
+
+-- ── 7. Clean up test data ─────────────────────────────────
 DELETE FROM task_assignments WHERE user_id = (SELECT id FROM users WHERE username = 'test_user');
 DELETE FROM tasks           WHERE title = 'Test Task';
 DELETE FROM users           WHERE username = 'test_user';
 DELETE FROM worksites       WHERE name = 'Test Worksite';
 
 -- Confirm cleanup
-SELECT 'task_assignments cleared' AS status, COUNT(*) AS remaining FROM task_assignments WHERE user_id NOT IN (SELECT id FROM users);
 SELECT 'cleanup complete' AS status;
