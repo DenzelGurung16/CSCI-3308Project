@@ -16,9 +16,30 @@ CREATE TABLE IF NOT EXISTS users (
     role          VARCHAR(20)  NOT NULL DEFAULT 'worker'
                       CHECK (role IN ('admin', 'manager', 'worker')),
     worksite_id   INT          REFERENCES worksites(id) ON DELETE SET NULL,
-    created_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMP    NOT NULL DEFAULT NOW()
+    created_at    TIMESTAMP    NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id          SERIAL       PRIMARY KEY,
+    title       VARCHAR(200) NOT NULL,
+    description TEXT,
+    status      VARCHAR(20)  NOT NULL DEFAULT 'todo'
+                    CHECK (status IN ('todo', 'in_progress', 'done', 'ice_box')),
+    priority    VARCHAR(10)  NOT NULL DEFAULT 'medium'
+                    CHECK (priority IN ('low', 'medium', 'high')),
+    created_by  INT          NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    worksite_id INT          REFERENCES worksites(id) ON DELETE SET NULL,
+    due_date    TIMESTAMP,
+    created_at  TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS task_assignments (
+    id          SERIAL      PRIMARY KEY,
+    task_id     INT         NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id     INT         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role        VARCHAR(20) NOT NULL DEFAULT 'assignee'
+                    CHECK (role IN ('assignee', 'reviewer', 'observer')),
+    assigned_at TIMESTAMP   NOT NULL DEFAULT NOW(),
  
-CREATE INDEX IF NOT EXISTS idx_users_email    ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_worksite ON users(worksite_id);
+    CONSTRAINT uq_task_user UNIQUE (task_id, user_id)
+);
