@@ -2,11 +2,15 @@ services:
   db:
     image: postgres
     env_file: .env
-    expose:
-      - '5432'
+    ports:
+      - '5432:5432'
     volumes:
       - group-project:/var/lib/postgresql
       - ./src/init_data:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=testPass #TODO: temp, change here and in .env
+      - POSTGRES_DB=testName
   web:
     image: node:lts
     user: 'node'
