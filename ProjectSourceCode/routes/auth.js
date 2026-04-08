@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
 
@@ -9,6 +10,9 @@ let pool;
 function init(pgPool) {
   pool = pgPool;
 }
+
+// Rate limiter for auth endpoints
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 
 // Auth middleware
 function authenticateToken(req, res, next) {
@@ -25,13 +29,13 @@ function authenticateToken(req, res, next) {
 
 function requireRole(...roles) {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+    if (!req.user || !roles.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
     next();
   };
 }
 
 // Register
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password) {
@@ -40,7 +44,7 @@ router.post('/register', async (req, res) => {
 
   try {
     const userExists = await pool.query(
-      'SELECT * FROM users WHERE email = $1 OR username = $2',
+      'SELECT id FROM users WHERE email = $1 OR username = $2',
       [email, username]
     );
     if (userExists.rows.length > 0) {
@@ -56,7 +60,7 @@ router.post('/register', async (req, res) => {
     const user = newUser.rows[0];
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    res.status(201).json({ token, user });
+    res.status(201).json({ token, user: { id: user.id, username: user.username, email: user.email, role: user.role } });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -64,7 +68,7 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -92,7 +96,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-
 // Get current user profile
 router.get('/get-user', authenticateToken, async (req, res) => {
   try {
@@ -114,6 +117,14 @@ router.patch('/update-user', authenticateToken, async (req, res) => {
 
   if (newPassword && !currentPassword) {
     return res.status(400).json({ error: 'currentPassword is required to set a new password' });
+  }
+
+  // Reject empty strings — treat them as missing
+  if (username !== undefined && !username.trim()) {
+    return res.status(400).json({ error: 'Username cannot be empty' });
+  }
+  if (email !== undefined && !email.trim()) {
+    return res.status(400).json({ error: 'Email cannot be empty' });
   }
 
   try {

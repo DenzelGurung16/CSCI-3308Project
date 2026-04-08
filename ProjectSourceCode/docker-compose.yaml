@@ -1,18 +1,14 @@
 services:
   db:
-    image: postgres
+    image: postgres:16
     env_file: .env
     ports:
       - '5432:5432'
     volumes:
       - group-project:/var/lib/postgresql
       - ./src/init_data:/docker-entrypoint-initdb.d
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=testPass #TODO: temp, change here and in .env
-      - POSTGRES_DB=testName
   web:
-    image: node:lts
+    image: node:22
     user: 'node'
     working_dir: /repository
     env_file: .env
@@ -24,6 +20,6 @@ services:
       - '3000:3000'
     volumes:
       - ./:/repository
-    command: 'sh -c "npm install && npm start"' #TODO: change to `npm run testandrun` to run mocha
+    command: 'sh -c "npm install && npm run testandrun"'
 volumes:
   group-project:
