@@ -6,6 +6,7 @@ const DEMO_TASKS = [
   {
     id: 101,
     title: 'Scope Story 3.1 implementation details',
+    description: '',
     status: 'backlog',
     dueDate: '2026-04-14',
     assignee: 'Winston',
@@ -14,6 +15,7 @@ const DEMO_TASKS = [
   {
     id: 102,
     title: 'Build initial board page shell',
+    description: '',
     status: 'in-progress',
     dueDate: '2026-04-11',
     assignee: 'Josh',
@@ -22,6 +24,7 @@ const DEMO_TASKS = [
   {
     id: 103,
     title: 'Review Bootstrap responsiveness',
+    description: '',
     status: 'review',
     dueDate: '2026-04-12',
     assignee: 'Ryken',
@@ -30,6 +33,7 @@ const DEMO_TASKS = [
   {
     id: 104,
     title: 'Confirm homepage theme parity',
+    description: '',
     status: 'done',
     dueDate: '2026-04-09',
     assignee: 'Hudson',
@@ -37,11 +41,21 @@ const DEMO_TASKS = [
   },
 ];
 
+let tasks = [];
+let nextId = 200;
+
 /**
  * TODO: Replace demo loader with real DB-backed task query endpoint.
  */
 async function fetchTasks() {
   return DEMO_TASKS;
+}
+
+/*just displays the task on the board, replace database endpoint here*/
+async function createTask(task) {
+  task.id = nextId++;
+  tasks.push(task);
+  return task;
 }
 
 function formatDate(isoDate) {
@@ -53,20 +67,29 @@ function createTaskCard(task) {
   const template = document.getElementById('taskCardTemplate');
   const taskCard = template.content.firstElementChild.cloneNode(true);
 
+  const statusColors = {
+    'backlog':     'var(--bs-secondary)',
+    'in-progress': 'var(--bs-primary)',
+    'review':      'var(--bs-warning)',
+    'done':        'var(--bs-success)',
+  };
+  taskCard.style.borderLeftColor = statusColors[task.status] || 'var(--bs-primary)';
+
   taskCard.querySelector('.task-title').textContent = task.title;
-  taskCard.querySelector('.task-meta').textContent = `#${task.id} • Due ${formatDate(task.dueDate)}`;
-  taskCard.querySelector('.task-assignee').textContent = task.assignee;
+  taskCard.querySelector('.task-description').textContent = task.description || '';
+  taskCard.querySelector('p.task-meta').textContent = `#${task.id} • Due ${formatDate(task.dueDate)}`;
+  taskCard.querySelector('.task-assignee').textContent = task.assignee || '';
   taskCard.querySelector('.task-priority').textContent = task.priority;
 
   return taskCard;
 }
 
-function renderTasksByStatus(tasks) {
+function renderTasksByStatus(taskList) {
   const taskLists = document.querySelectorAll('[data-status]');
 
   taskLists.forEach((columnBody) => {
     const status = columnBody.dataset.status;
-    const tasksInColumn = tasks.filter((task) => task.status === status);
+    const tasksInColumn = taskList.filter((t) => t.status === status);
 
     columnBody.innerHTML = '';
 
@@ -76,19 +99,52 @@ function renderTasksByStatus(tasks) {
       emptyState.textContent = 'No tasks yet.';
       columnBody.appendChild(emptyState);
     } else {
-      tasksInColumn.forEach((task) => {
-        columnBody.appendChild(createTaskCard(task));
-      });
+      tasksInColumn.forEach((task) => columnBody.appendChild(createTaskCard(task)));
     }
 
     const countBadge = document.querySelector(`[data-count-for="${status}"]`);
-    if (countBadge) {
-      countBadge.textContent = tasksInColumn.length;
-    }
+    if (countBadge) countBadge.textContent = tasksInColumn.length;
   });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const tasks = await fetchTasks();
+  tasks = await fetchTasks();
   renderTasksByStatus(tasks);
+
+  document.getElementById('saveTaskBtn').addEventListener('click', async () => {
+    const form       = document.getElementById('addTaskForm');
+    const titleEl    = document.getElementById('taskTitle');
+    const priorityEl = document.getElementById('taskPriority');
+    const statusEl   = document.getElementById('taskStatus');
+    const descEl     = document.getElementById('taskDescription');
+    const assigneeEl = document.getElementById('taskAssignee');
+    const dueDateEl  = document.getElementById('taskDueDate');
+
+    let valid = true;
+    [titleEl, priorityEl, statusEl].forEach((el) => {
+      if (!el.value.trim()) {
+        el.classList.add('is-invalid');
+        valid = false;
+      } else {
+        el.classList.remove('is-invalid');
+      }
+    });
+    if (!valid) return;
+
+    const newTask = {
+      title:       titleEl.value.trim(),
+      description: descEl.value.trim(),
+      priority:    priorityEl.value,
+      status:      statusEl.value,
+      dueDate:     dueDateEl.value || null,
+      assignee:    assigneeEl.value.trim(),
+    };
+
+    await createTask(newTask);
+    renderTasksByStatus(tasks);
+
+    form.reset();
+    [titleEl, priorityEl, statusEl].forEach((el) => el.classList.remove('is-invalid'));
+    bootstrap.Modal.getInstance(document.getElementById('addTaskModal')).hide();
+  });
 });
