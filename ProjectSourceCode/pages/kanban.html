@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kanban Board | Task Tracker 0.0.2</title>
+    <meta
+      name="description"
+      content="Kanban board layout for viewing tasks by status in Task Tracker."
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <style>
+      .kanban-column {
+        min-height: 26rem;
+      }
+
+      .task-list {
+        min-height: 20rem;
+      }
+
+      .task-card {
+        border-left: 0.3rem solid var(--bs-primary);
+      }
+
+      .task-title {
+        font-size: 0.95rem;
+        line-height: 1.2;
+      }
+
+      .task-meta {
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body class="bg-light text-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+      <div class="container">
+        <a class="navbar-brand fw-bold" href="/">Task Tracker 0.0.1</a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#mainNavbar"
+          aria-controls="mainNavbar"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse justify-content-end" id="mainNavbar">
+          <ul class="navbar-nav align-items-lg-center gap-2">
+            <li class="nav-item">
+              <a class="btn btn-outline-light btn-sm fw-semibold" href="../index.html">Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="btn btn-light btn-sm fw-semibold" href="/pages/kanban.html">Tasks</a>
+            </li>
+            <li class="nav-item ms-lg-2">
+              <span class="navbar-text text-white-50">Team Choo Choo Trains</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <main class="py-4 py-lg-5">
+      <div class="container">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+          <div>
+            <h1 class="h2 mb-1">Kanban Board</h1>
+            <p class="text-secondary mb-0">
+              Temp scaffold for development
+            </p>
+          </div>
+          <button class="btn btn-primary" type="button" disabled>Add Task (Coming Soon)</button>
+        </div>
+
+        <section class="row g-3 g-lg-4" id="kanbanBoard">
+          <div class="col-12 col-md-6 col-xl-3">
+            <div class="card shadow-sm kanban-column h-100">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h2 class="h6 mb-0">Backlog</h2>
+                <span class="badge text-bg-secondary rounded-pill" data-count-for="backlog">0</span>
+              </div>
+              <div class="card-body bg-body-tertiary task-list" data-status="backlog"></div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6 col-xl-3">
+            <div class="card shadow-sm kanban-column h-100">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h2 class="h6 mb-0">In Progress</h2>
+                <span class="badge text-bg-primary rounded-pill" data-count-for="in-progress">0</span>
+              </div>
+              <div class="card-body bg-body-tertiary task-list" data-status="in-progress"></div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6 col-xl-3">
+            <div class="card shadow-sm kanban-column h-100">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h2 class="h6 mb-0">Review</h2>
+                <span class="badge text-bg-warning rounded-pill" data-count-for="review">0</span>
+              </div>
+              <div class="card-body bg-body-tertiary task-list" data-status="review"></div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6 col-xl-3">
+            <div class="card shadow-sm kanban-column h-100">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h2 class="h6 mb-0">Done</h2>
+                <span class="badge text-bg-success rounded-pill" data-count-for="done">0</span>
+              </div>
+              <div class="card-body bg-body-tertiary task-list" data-status="done"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <template id="taskCardTemplate">
+      <article class="card shadow-sm mb-2 task-card">
+        <div class="card-body py-2 px-3">
+          <h3 class="task-title fw-semibold mb-1"></h3>
+          <p class="task-meta text-secondary mb-1"></p>
+          <div class="d-flex justify-content-between align-items-center task-meta text-secondary">
+            <span class="task-assignee"></span>
+            <span class="task-priority badge text-bg-light border"></span>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
+    <script src="/scripts/kanban.js"></script>
+  </body>
+</html>
