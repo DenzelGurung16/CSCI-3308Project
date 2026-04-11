@@ -8,7 +8,7 @@ const DEMO_TASKS = [
     title: 'Scope Story 3.1 implementation details',
     description: '',
     status: 'backlog',
-    dueDate: '2026-04-14',
+    due_date: '2026-04-14',
     assignee: 'Winston',
     priority: 'High',
   },
@@ -17,7 +17,7 @@ const DEMO_TASKS = [
     title: 'Build initial board page shell',
     description: '',
     status: 'in-progress',
-    dueDate: '2026-04-11',
+    due_date: '2026-04-11',
     assignee: 'Josh',
     priority: 'Medium',
   },
@@ -26,7 +26,7 @@ const DEMO_TASKS = [
     title: 'Review Bootstrap responsiveness',
     description: '',
     status: 'review',
-    dueDate: '2026-04-12',
+    due_date: '2026-04-12',
     assignee: 'Ryken',
     priority: 'Low',
   },
@@ -35,7 +35,7 @@ const DEMO_TASKS = [
     title: 'Confirm homepage theme parity',
     description: '',
     status: 'done',
-    dueDate: '2026-04-09',
+    due_date: '2026-04-09',
     assignee: 'Hudson',
     priority: 'Medium',
   },
@@ -72,6 +72,33 @@ async function createTask(taskData) {
   return await response.json();
 }
 
+async function updateTask(taskId, taskData) {
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(taskData),
+  });
+  if (!response.ok) {
+    throw new Error('Error updating task on the server');
+  }
+  await fetchTasks();
+  renderTasksByStatus(tasks);
+  return await response.json();
+}
+
+// Delete task from database
+async function deleteTask(taskId) {
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Error deleting task from the server');
+  }
+  await fetchTasks();
+  renderTasksByStatus(tasks);
+}
+ 
+
 function formatDate(isoDate) {
   const date = new Date(`${isoDate}T00:00:00Z`);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -91,7 +118,7 @@ function createTaskCard(task) {
 
   taskCard.querySelector('.task-title').textContent = task.title;
   taskCard.querySelector('.task-description').textContent = task.description || '';
-  taskCard.querySelector('p.task-meta').textContent = `#${task.id} • Due ${formatDate(task.dueDate)}`;
+  taskCard.querySelector('p.task-meta').textContent = `#${task.id} • Due ${formatDate(task.due_date)}`;
   taskCard.querySelector('.task-assignee').textContent = task.assignee || '';
   taskCard.querySelector('.task-priority').textContent = task.priority;
   taskCard.querySelector('.btn-edit-task').addEventListener('click', () => openEditModal(task.id));
@@ -122,6 +149,22 @@ function renderTasksByStatus(taskList) {
   });
 }
 
+// Show confirmation or error message to the user
+function showAlert(message, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const id = `toast-${Date.now()}`;
+  container.insertAdjacentHTML('beforeend', `
+    <div id="${id}" class="toast align-items-center text-bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body">${message}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>`);
+  const toastEl = document.getElementById(id);
+  new bootstrap.Toast(toastEl, { delay: 3000 }).show();
+  toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
 function openEditModal(taskId) {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
@@ -130,7 +173,7 @@ function openEditModal(taskId) {
   document.getElementById('editTaskTitle').value       = task.title;
   document.getElementById('editTaskDescription').value = task.description || '';
   document.getElementById('editTaskAssignee').value    = task.assignee || '';
-  document.getElementById('editTaskDueDate').value     = task.dueDate || '';
+  document.getElementById('editTaskDueDate').value     = task.due_date ? task.due_date.split('T')[0] : '';
   document.getElementById('editTaskPriority').value    = task.priority;
   document.getElementById('editTaskStatus').value      = task.status;
  
@@ -167,7 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       description: descEl.value.trim(),
       priority:    priorityEl.value,
       status:      statusEl.value,
-      dueDate:     dueDateEl.value || null,
+      due_date:    dueDateEl.value || null,
       assignee:    assigneeEl.value.trim(),
     };
 
@@ -179,7 +222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     bootstrap.Modal.getInstance(document.getElementById('addTaskModal')).hide();
   });
 
-document.getElementById('updateTaskBtn').addEventListener('click', () => {
+document.getElementById('updateTaskBtn').addEventListener('click', async () => {
     const form       = document.getElementById('editTaskForm');
     const titleEl    = document.getElementById('editTaskTitle');
     const priorityEl = document.getElementById('editTaskPriority');
@@ -197,30 +240,36 @@ document.getElementById('updateTaskBtn').addEventListener('click', () => {
     if (!valid) { form.classList.add('was-validated'); return; }
  
     const id  = parseInt(document.getElementById('editTaskId').value, 10);
-    const idx = tasks.findIndex(t => t.id === id);
-    if (idx === -1) return;
- 
-    tasks[idx] = {
-      ...tasks[idx],
+    const updatedData = {
       title:       titleEl.value.trim(),
       description: document.getElementById('editTaskDescription').value.trim(),
       assignee:    document.getElementById('editTaskAssignee').value.trim(),
-      dueDate:     document.getElementById('editTaskDueDate').value || null,
+      due_date:    document.getElementById('editTaskDueDate').value || null,
       priority:    priorityEl.value,
       status:      statusEl.value,
     };
  
-    renderTasksByStatus(tasks);
-    bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
-  });
+ try {
+   await updateTask(id, updatedData);
+   bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
+   showAlert('Task updated succesfully.', 'success');
+ }catch (err) {
+   showAlert('Failed to update Task. Please try again.', 'danger');
+ }
+});
  
   // Delete Task
-  document.getElementById('deleteTaskBtn').addEventListener('click', () => {
+  document.getElementById('deleteTaskBtn').addEventListener('click', async () => {
     const id = parseInt(document.getElementById('editTaskId').value, 10);
     if (!confirm('Delete this task? This cannot be undone.')) return;
-    tasks = tasks.filter(t => t.id !== id);
-    renderTasksByStatus(tasks);
-    bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
+ 
+    try {
+      await deleteTask(id);
+      bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
+      showAlert('Task deleted.', 'danger');
+    } catch (err) {
+      showAlert('Failed to delete task. Please try again.', 'danger');
+    }
   });
  
   // Reset validation on edit modal close
