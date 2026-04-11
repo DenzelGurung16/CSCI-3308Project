@@ -90,6 +90,45 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
+app.put('/api/tasks/:id', async (req, res) => {
+  const query =
+    UPDATE tasks
+    SET title       = \${title},
+        description = \${description},
+        status      = \${status},
+        due_date    = \${due_date},
+        priority    = \${priority},
+        assignee    = \${assignee}
+    WHERE id = \${id}
+    RETURNING *;
+  `;
+  try {
+    const result = awaitdb.one(query, {
+      id: parseInt(req.params.id,10),
+      title: req.body.title,
+      discription: req.body.description || null,
+      status: req.body.status || 'backlog',
+      due_date: req.body.due_date || null,
+      priority: req.body.priority || 'Medium',
+      assignee: req.body.assignee || null,
+    });
+  res.status(200).json(result);
+} catch (err) {
+  res.status(500).json({error: 'Failed to update Task'});
+}
+});
+
+// Delete task
+app.delete('/api/tasks/:id', async (req, res) => {
+  const query = `DELETE FROM tasks WHERE id = \${id} RETURNING id;`;
+  try {
+    const result = await db.one(query, { id: parseInt(req.params.id, 10) });
+    res.status(200).json({ deleted: result.id });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
 // Routes
 const auth = require('./routes/auth');
 auth.init(pool);
