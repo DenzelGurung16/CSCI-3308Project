@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     description TEXT,
     status      VARCHAR(20)  NOT NULL DEFAULT 'backlog'
                     CHECK (status IN ('backlog', 'in-progress', 'review', 'done')),
-    priority    VARCHAR(10)  NOT NULL DEFAULT 'medium'
-                    CHECK (priority IN ('low', 'medium', 'high')),
+    priority    VARCHAR(10)  NOT NULL DEFAULT 'Medium'
+                    CHECK (priority IN ('Low', 'Medium', 'High')),
     assignee    VARCHAR(100),
     created_by  INT          NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     worksite_id INT          REFERENCES worksites(id) ON DELETE SET NULL,
