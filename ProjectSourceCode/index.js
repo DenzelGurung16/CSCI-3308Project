@@ -4,6 +4,7 @@ const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
 const path = require('path');
+const db = require('./src/resources/db.js');
 
 
 if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is not set');
@@ -58,6 +59,37 @@ app.get('/welcome', (req, res) => {
   res.status(200).json({ status: 'success', message: 'Welcome!', visits: req.session.visits });
 });
 
+//pull tasks
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const tasks = await db.any('SELECT * FROM tasks;');
+    res.json(tasks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+//push tasks
+app.post('/api/tasks', async (req, res) => {
+  const query = `
+    INSERT INTO tasks (title, description, status, due_date, created_by, priority)
+    VALUES ($\{title\}, $\{description\}, $\{status\}, $\{due_date\}, $\{created_by\}, $\{priority\})
+    RETURNING id, created_at;
+  `;
+    try {
+      const result = await db.one(query, {
+        title: req.body.title,
+        description: req.body.description,
+        status: req.body.status || 'backlog',
+        due_date: req.body.due_date || null,
+        created_by: 1, //TODO: change to the session user id when implemented
+        priority: req.body.priority || 'medium'});
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to create task" });
+  }
+});
+
 // Routes
 const auth = require('./routes/auth');
 auth.init(pool);
@@ -67,5 +99,7 @@ app.use('/api/auth', auth.router);
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+
 
 module.exports = app;

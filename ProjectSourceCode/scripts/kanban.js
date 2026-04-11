@@ -44,18 +44,32 @@ const DEMO_TASKS = [
 let tasks = [];
 let nextId = 200;
 
-/**
- * TODO: Replace demo loader with real DB-backed task query endpoint.
- */
+/*Pulling tasks from db*/
 async function fetchTasks() {
-  return DEMO_TASKS;
+  const response = await fetch('/api/tasks');
+  const dbTasks = await response.json();
+  tasks.length = 0;
+  for (const task of dbTasks) {
+    tasks.push(task);
+  }
+  return tasks;
 }
 
-/*just displays the task on the board, replace database endpoint here*/
-async function createTask(task) {
-  task.id = nextId++;
-  tasks.push(task);
-  return task;
+/*TODO: Change tasks sql table or task item to have same fields*/
+async function createTask(taskData) {
+  const response = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(taskData),
+  });
+  if (!response.ok) {
+    throw new Error('Error saving task to the server');
+  }
+  await fetchTasks();
+  renderTasksByStatus(tasks);
+  return await response.json();
 }
 
 function formatDate(isoDate) {

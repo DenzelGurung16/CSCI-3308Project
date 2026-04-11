@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     title       VARCHAR(200) NOT NULL,
     description TEXT,
     status      VARCHAR(20)  NOT NULL DEFAULT 'todo'
-                    CHECK (status IN ('todo', 'in_progress', 'done', 'ice_box')),
+                    CHECK (status IN ('backlog', 'in-progress', 'review', 'done')),
     priority    VARCHAR(10)  NOT NULL DEFAULT 'medium'
                     CHECK (priority IN ('low', 'medium', 'high')),
     created_by  INT          NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
