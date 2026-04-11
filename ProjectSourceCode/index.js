@@ -90,8 +90,9 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
+// Update task
 app.put('/api/tasks/:id', async (req, res) => {
-  const query =
+  const query = `
     UPDATE tasks
     SET title       = \${title},
         description = \${description},
@@ -103,21 +104,21 @@ app.put('/api/tasks/:id', async (req, res) => {
     RETURNING *;
   `;
   try {
-    const result = awaitdb.one(query, {
-      id: parseInt(req.params.id,10),
-      title: req.body.title,
-      discription: req.body.description || null,
-      status: req.body.status || 'backlog',
-      due_date: req.body.due_date || null,
-      priority: req.body.priority || 'Medium',
-      assignee: req.body.assignee || null,
+    const result = await db.one(query, {
+      id:          parseInt(req.params.id, 10),
+      title:       req.body.title,
+      description: req.body.description  || null,
+      status:      req.body.status       || 'backlog',
+      due_date:    req.body.due_date     || null,
+      priority:    req.body.priority     || 'medium',
+      assignee:    req.body.assignee     || null,
     });
-  res.status(200).json(result);
-} catch (err) {
-  res.status(500).json({error: 'Failed to update Task'});
-}
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update task' });
+  }
 });
-
+ 
 // Delete task
 app.delete('/api/tasks/:id', async (req, res) => {
   const query = `DELETE FROM tasks WHERE id = \${id} RETURNING id;`;
