@@ -46,7 +46,7 @@
             <h1 class="h2 mb-1">Kanban Board</h1>
             <p class="text-secondary mb-0">Temp scaffold for development</p>
           </div>
-          <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#addTaskModal">Add Task</button>
+          <button class="btn btn-primary" data-manager-only type="button" data-bs-toggle="modal" data-bs-target="#addTaskModal">Add Task</button>
         </div>
 
         <section class="row g-3 g-lg-4" id="kanbanBoard">
@@ -226,10 +226,10 @@
             </form>
           </div>
           <div class="modal-footer d-flex justify-content-between">
-            <button type="button" class="btn btn-outline-danger" id="deleteTaskBtn">Delete Task</button>
+            <button type="button" class="btn btn-outline-danger" data-manager-only id="deleteTaskBtn">Delete Task</button>
             <div class="d-flex gap-2">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="button" class="btn btn-primary" id="updateTaskBtn">Save Changes</button>
+              <button type="button" class="btn btn-primary" data-manager-only id="updateTaskBtn">Save Changes</button>
             </div>
           </div>
         </div>

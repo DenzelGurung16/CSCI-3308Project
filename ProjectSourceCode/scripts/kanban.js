@@ -1,48 +1,4 @@
-/**
- * INCOMPLETE DISREGARD
- */
-
-const DEMO_TASKS = [
-  {
-    id: 101,
-    title: 'Scope Story 3.1 implementation details',
-    description: '',
-    status: 'backlog',
-    dueDate: '2026-04-14',
-    assignee: 'Winston',
-    priority: 'High',
-  },
-  {
-    id: 102,
-    title: 'Build initial board page shell',
-    description: '',
-    status: 'in-progress',
-    dueDate: '2026-04-11',
-    assignee: 'Josh',
-    priority: 'Medium',
-  },
-  {
-    id: 103,
-    title: 'Review Bootstrap responsiveness',
-    description: '',
-    status: 'review',
-    dueDate: '2026-04-12',
-    assignee: 'Ryken',
-    priority: 'Low',
-  },
-  {
-    id: 104,
-    title: 'Confirm homepage theme parity',
-    description: '',
-    status: 'done',
-    dueDate: '2026-04-09',
-    assignee: 'Hudson',
-    priority: 'Medium',
-  },
-];
-
 let tasks = [];
-let nextId = 200;
 
 const addMap = TaskMap.create({
   mapElId: 'taskMap', searchContainerId: 'mapSearchContainer',
@@ -61,30 +17,59 @@ function showError(message) {
   bootstrap.Toast.getOrCreateInstance(document.getElementById('errorToast')).show();
 }
 
-/*Pulling tasks from db*/
+// Returns auth header object if a token exists, otherwise empty object
+function authHeaders() {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// Redirects to login if the server returns 401
+function handleUnauthorized(response) {
+  if (response.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/pages/login.html';
+  }
+}
+
+// Returns the current user object from localStorage, or null
+function getCurrentUser() {
+  try {
+    return JSON.parse(localStorage.getItem('user'));
+  } catch {
+    return null;
+  }
+}
+
+// Hides UI controls that workers should not see (create, edit, delete)
+function applyRoleUI() {
+  const user = getCurrentUser();
+  const isWorker = !user || user.role === 'worker';
+
+  // Hide the "Add Task" button for workers
+  document.querySelectorAll('[data-manager-only]').forEach(el => {
+    el.classList.toggle('d-none', isWorker);
+  });
+}
+
+// Fetches tasks from the server — the backend already filters by role
 async function fetchTasks() {
-  const response = await fetch('/api/tasks');
+  const response = await fetch('/api/tasks', { headers: authHeaders() });
+  handleUnauthorized(response);
   const dbTasks = await response.json();
   tasks.length = 0;
-  for (const task of dbTasks) {
-    tasks.push(task);
-  }
+  tasks.push(...dbTasks);
   return tasks;
 }
 
 async function createTask(taskData) {
-  const headers = { 'Content-Type': 'application/json' };
-  const token = localStorage.getItem('token');
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
   const response = await fetch('/api/tasks', {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(taskData),
   });
-  if (!response.ok) {
-    throw new Error('Error saving task to the server');
-  }
+  handleUnauthorized(response);
+  if (!response.ok) throw new Error('Error saving task to the server');
   await fetchTasks();
   renderTasksByStatus(tasks);
   return await response.json();
@@ -96,7 +81,6 @@ function formatDate(isoDate) {
   const date = new Date(isoDate);
   return isNaN(date) ? '' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
-
 
 function createTaskCard(task, num) {
   const template = document.getElementById('taskCardTemplate');
@@ -110,15 +94,24 @@ function createTaskCard(task, num) {
   };
   taskCard.style.borderLeftColor = statusColors[task.status] || 'var(--bs-primary)';
 
-  taskCard.querySelector('.task-title').textContent = task.title;
+  taskCard.querySelector('.task-title').textContent       = task.title;
   taskCard.querySelector('.task-description').textContent = task.description || '';
-  taskCard.querySelector('p.task-meta').textContent = `#${num} • Due ${formatDate(task.due_date)}`;
-  taskCard.querySelector('.task-assignee').textContent = task.assignee || '';
-  taskCard.querySelector('.task-priority').textContent = task.priority;
-  taskCard.querySelector('.btn-edit-task').addEventListener('click', () => openEditModal(task.id));
+  taskCard.querySelector('p.task-meta').textContent       = `#${num} • Due ${formatDate(task.due_date)}`;
+  taskCard.querySelector('.task-assignee').textContent    = task.assignee || '';
+  taskCard.querySelector('.task-priority').textContent    = task.priority;
+
+  // Hide the edit button for workers
+  const user = getCurrentUser();
+  const editBtn = taskCard.querySelector('.btn-edit-task');
+  if (user && user.role === 'worker') {
+    editBtn.classList.add('d-none');
+  } else {
+    editBtn.addEventListener('click', () => openEditModal(task.id));
+  }
+
   const locEl = taskCard.querySelector('.task-location');
   if (task.worksite_name) {
-    locEl.textContent = `${task.worksite_name}`;
+    locEl.textContent = task.worksite_name;
     locEl.classList.remove('d-none');
   }
 
@@ -160,7 +153,7 @@ function openEditModal(taskId) {
   document.getElementById('editTaskTitle').value       = task.title;
   document.getElementById('editTaskDescription').value = task.description || '';
   document.getElementById('editTaskAssignee').value    = task.assignee || '';
-  document.getElementById('editTaskDueDate').value = task.due_date ? task.due_date.split('T')[0] : '';
+  document.getElementById('editTaskDueDate').value     = task.due_date ? task.due_date.split('T')[0] : '';
   document.getElementById('editTaskPriority').value    = task.priority;
   document.getElementById('editTaskStatus').value      = task.status;
 
@@ -175,9 +168,9 @@ function openEditModal(taskId) {
 document.addEventListener('DOMContentLoaded', async () => {
   tasks = await fetchTasks();
   renderTasksByStatus(tasks);
+  applyRoleUI();
 
   const addTaskModalEl = document.getElementById('addTaskModal');
-
   addTaskModalEl.addEventListener('shown.bs.modal', () => addMap.init());
   addTaskModalEl.addEventListener('hidden.bs.modal', () => addMap.reset());
 
@@ -202,22 +195,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let valid = true;
     [titleEl, priorityEl, statusEl].forEach((el) => {
-      if (!el.value.trim()) {
-        el.classList.add('is-invalid');
-        valid = false;
-      } else {
-        el.classList.remove('is-invalid');
-      }
+      if (!el.value.trim()) { el.classList.add('is-invalid'); valid = false; }
+      else { el.classList.remove('is-invalid'); }
     });
     if (!valid) return;
 
-    // Create worksite from map selection
     let worksite_id = null;
     const loc = addMap.getSelection();
     if (loc) {
       const wsRes = await fetch('/api/worksites', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ name: loc.name, address: loc.address, lat: loc.lat, lng: loc.lng }),
       });
       if (wsRes.ok) worksite_id = (await wsRes.json()).id;
@@ -235,7 +223,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       await createTask(newTask);
-      renderTasksByStatus(tasks);
       form.reset();
       [titleEl, priorityEl, statusEl].forEach((el) => el.classList.remove('is-invalid'));
       bootstrap.Modal.getInstance(addTaskModalEl).hide();
@@ -261,7 +248,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
-    // Reuse existing worksite if location unchanged, create new if changed, null if cleared
     let worksite_id = null;
     const loc = editMap.getSelection();
     if (loc) {
@@ -273,21 +259,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         const wsRes = await fetch('/api/worksites', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({ name: loc.name, address: loc.address, lat: loc.lat, lng: loc.lng }),
         });
         if (wsRes.ok) worksite_id = (await wsRes.json()).id;
       }
     }
 
-    const headers = { 'Content-Type': 'application/json' };
-    const token = localStorage.getItem('token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
     try {
       const res = await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
-        headers,
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           title:       titleEl.value.trim(),
           description: document.getElementById('editTaskDescription').value.trim(),
@@ -298,6 +280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           worksite_id,
         }),
       });
+      handleUnauthorized(res);
       if (!res.ok) throw new Error();
       await fetchTasks();
       renderTasksByStatus(tasks);
@@ -306,17 +289,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       showError('Failed to update task. Please try again.');
     }
   });
- 
-  // Delete Task
+
   document.getElementById('deleteTaskBtn').addEventListener('click', async () => {
     const id = parseInt(document.getElementById('editTaskId').value, 10);
     if (!confirm('Delete this task? This cannot be undone.')) return;
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`/api/tasks/${id}`, {
         method: 'DELETE',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        headers: authHeaders(),
       });
+      handleUnauthorized(res);
       if (!res.ok) throw new Error();
       tasks = tasks.filter(t => t.id !== id);
       renderTasksByStatus(tasks);
@@ -326,7 +308,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Reset error handling on modal close
   editTaskModalEl.addEventListener('hidden.bs.modal', () => {
     document.getElementById('editTaskForm').classList.remove('was-validated');
     ['editTaskTitle', 'editTaskPriority', 'editTaskStatus'].forEach(id => {
