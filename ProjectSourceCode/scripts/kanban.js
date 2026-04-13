@@ -63,7 +63,21 @@ function showError(message) {
 
 /*Pulling tasks from db*/
 async function fetchTasks() {
-  const response = await fetch('/api/tasks');
+  const token = localStorage.getItem('token');
+  const headers = {};
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  const response = await fetch('/api/tasks', { headers });
+  
+  if (response.status === 401) {
+    // Token expired or invalid - redirect to login
+    window.location.href = '/pages/login.html';
+    return [];
+  }
+  
   const dbTasks = await response.json();
   tasks.length = 0;
   for (const task of dbTasks) {
@@ -73,21 +87,89 @@ async function fetchTasks() {
 }
 
 async function createTask(taskData) {
-  const headers = { 'Content-Type': 'application/json' };
   const token = localStorage.getItem('token');
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
   const response = await fetch('/api/tasks', {
     method: 'POST',
-    headers,
+    headers: headers,
     body: JSON.stringify(taskData),
   });
+  
+  if (response.status === 401) {
+    window.location.href = '/pages/login.html';
+    throw new Error('Authentication required');
+  }
+  
   if (!response.ok) {
     throw new Error('Error saving task to the server');
   }
+  
   await fetchTasks();
   renderTasksByStatus(tasks);
   return await response.json();
+}
+
+async function updateTask(taskId, taskData) {
+  const token = localStorage.getItem('token');
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'PUT',
+    headers: headers,
+    body: JSON.stringify(taskData),
+  });
+  
+  if (response.status === 401) {
+    window.location.href = '/pages/login.html';
+    throw new Error('Authentication required');
+  }
+  
+  if (!response.ok) {
+    throw new Error('Error updating task on the server');
+  }
+  
+  await fetchTasks();
+  renderTasksByStatus(tasks);
+  return await response.json();
+}
+
+async function deleteTask(taskId) {
+  const token = localStorage.getItem('token');
+  const headers = {};
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'DELETE',
+    headers: headers,
+  });
+  
+  if (response.status === 401) {
+    window.location.href = '/pages/login.html';
+    throw new Error('Authentication required');
+  }
+  
+  if (!response.ok) {
+    throw new Error('Error deleting task from the server');
+  }
+  
+  await fetchTasks();
+  renderTasksByStatus(tasks);
 }
 
 // UTC dates
