@@ -7,14 +7,12 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const db = require('./src/resources/db.js');
 
-
 if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is not set');
 if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not set');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Single DB connection pool using POSTGRES_* vars
 const pool = new Pool({
   user: process.env.POSTGRES_USER,
   password: process.env.POSTGRES_PASSWORD,
@@ -25,12 +23,7 @@ const pool = new Pool({
 
 app.use(express.json());
 
-// Static files 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-app.use('/pages', express.static(path.join(__dirname, 'pages')));
-app.use('/scripts', express.static(path.join(__dirname, 'scripts')));
-
-// Session persistence
+// Session middleware BEFORE routes
 app.use(session({
   store: new pgSession({
     conObject: {
@@ -53,6 +46,21 @@ app.use(session({
     sameSite: 'lax',
   },
 }));
+
+// Auth BEFORE routes that use authenticateToken
+const auth = require('./routes/auth');
+auth.init(pool);
+app.use('/api/auth', auth.router);
+const { authenticateToken } = auth;
+
+const worksites = require('./routes/worksites');
+worksites.init(pool);
+app.use('/api/worksites', worksites.router);
+
+// Static files
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.use('/pages', express.static(path.join(__dirname, 'pages')));
+app.use('/scripts', express.static(path.join(__dirname, 'scripts')));
 
 app.get('/api/config', (req, res) => {
   res.json({ googleMapsKey: process.env.GOOGLE_MAPS_API_KEY || '' });
@@ -89,7 +97,7 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
 
   const query = `
     INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id)
-    VALUES ($\{title\}, $\{description\}, $\{status\}, $\{due_date\}, $\{created_by\}, $\{priority\}, $\{worksite_id\})
+    VALUES (${title}, ${description}, ${status}, ${due_date}, ${created_by}, ${priority}, ${worksite_id})
     RETURNING id, created_at;
   `;
   try {
@@ -112,10 +120,10 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
 app.patch('/api/tasks/:id', authenticateToken, async (req, res) => {
   const query = `
     UPDATE tasks
-    SET title = \${title}, description = \${description}, status = \${status},
-        due_date = \${due_date}, assignee = \${assignee}, priority = \${priority},
-        worksite_id = \${worksite_id}
-    WHERE id = \${id}
+    SET title = ${title}, description = ${description}, status = ${status},
+        due_date = ${due_date}, assignee = ${assignee}, priority = ${priority},
+        worksite_id = ${worksite_id}
+    WHERE id = ${id}
   `;
   try {
     const result = await db.result(query, {
@@ -146,21 +154,9 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Routes
-const auth = require('./routes/auth');
-auth.init(pool);
-app.use('/api/auth', auth.router);
-const { authenticateToken } = auth;
-
-const worksites = require('./routes/worksites');
-worksites.init(pool);
-app.use('/api/worksites', worksites.router);
-
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
-
-
 
 module.exports = app;
