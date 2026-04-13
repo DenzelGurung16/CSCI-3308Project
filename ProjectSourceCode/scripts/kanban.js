@@ -1,48 +1,6 @@
-/**
- * INCOMPLETE DISREGARD
- */
-
-const DEMO_TASKS = [
-  {
-    id: 101,
-    title: 'Scope Story 3.1 implementation details',
-    description: '',
-    status: 'backlog',
-    dueDate: '2026-04-14',
-    assignee: 'Winston',
-    priority: 'High',
-  },
-  {
-    id: 102,
-    title: 'Build initial board page shell',
-    description: '',
-    status: 'in-progress',
-    dueDate: '2026-04-11',
-    assignee: 'Josh',
-    priority: 'Medium',
-  },
-  {
-    id: 103,
-    title: 'Review Bootstrap responsiveness',
-    description: '',
-    status: 'review',
-    dueDate: '2026-04-12',
-    assignee: 'Ryken',
-    priority: 'Low',
-  },
-  {
-    id: 104,
-    title: 'Confirm homepage theme parity',
-    description: '',
-    status: 'done',
-    dueDate: '2026-04-09',
-    assignee: 'Hudson',
-    priority: 'Medium',
-  },
-];
-
 let tasks = [];
-let nextId = 200;
+
+// ─── Map instances ────────────────────────────────────────────────────────────
 
 const addMap = TaskMap.create({
   mapElId: 'taskMap', searchContainerId: 'mapSearchContainer',
@@ -56,129 +14,94 @@ const editMap = TaskMap.create({
   labelId: 'editSelectedLocationLabel', hintId: 'editMapHint',
 });
 
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
 function showError(message) {
   document.getElementById('toastMessage').textContent = message;
   bootstrap.Toast.getOrCreateInstance(document.getElementById('errorToast')).show();
 }
 
-/*Pulling tasks from db*/
-async function fetchTasks() {
-  const token = localStorage.getItem('token');
-  const headers = {};
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  
-  const response = await fetch('/api/tasks', { headers });
-  
-  if (response.status === 401) {
-    // Token expired or invalid - redirect to login
-    window.location.href = '/pages/login.html';
-    return [];
-  }
-  
-  const dbTasks = await response.json();
-  tasks.length = 0;
-  for (const task of dbTasks) {
-    tasks.push(task);
-  }
-  return tasks;
-}
-
-async function createTask(taskData) {
-  const token = localStorage.getItem('token');
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  
-  const response = await fetch('/api/tasks', {
-    method: 'POST',
-    headers: headers,
-    body: JSON.stringify(taskData),
-  });
-  
-  if (response.status === 401) {
-    window.location.href = '/pages/login.html';
-    throw new Error('Authentication required');
-  }
-  
-  if (!response.ok) {
-    throw new Error('Error saving task to the server');
-  }
-  
-  await fetchTasks();
-  renderTasksByStatus(tasks);
-  return await response.json();
-}
-
-async function updateTask(taskId, taskData) {
-  const token = localStorage.getItem('token');
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  
-  const response = await fetch(`/api/tasks/${taskId}`, {
-    method: 'PATCH',  
-    headers: headers,
-    body: JSON.stringify(taskData),
-  });
-  
-  if (response.status === 401) {
-    window.location.href = '/pages/login.html';
-    throw new Error('Authentication required');
-  }
-  
-  if (!response.ok) {
-    throw new Error('Error updating task on the server');
-  }
-  
-  await fetchTasks();
-  renderTasksByStatus(tasks);
-  return await response.json();
-}
-
-async function deleteTask(taskId) {
-  const token = localStorage.getItem('token');
-  const headers = {};
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  
-  const response = await fetch(`/api/tasks/${taskId}`, {
-    method: 'DELETE',
-    headers: headers,
-  });
-  
-  if (response.status === 401) {
-    window.location.href = '/pages/login.html';
-    throw new Error('Authentication required');
-  }
-  
-  if (!response.ok) {
-    throw new Error('Error deleting task from the server');
-  }
-  
-  await fetchTasks();
-  renderTasksByStatus(tasks);
-}
-
-// UTC dates
 function formatDate(isoDate) {
   if (!isoDate) return 'No due date';
   const date = new Date(isoDate);
   return isNaN(date) ? '' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
+// Returns headers with Content-Type and Authorization token if one is stored
+function authHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+// Redirects to login on 401
+function handleUnauthorized(response) {
+  if (response.status === 401) {
+    window.location.href = '/pages/login.html';
+    throw new Error('Authentication required');
+  }
+}
+
+// ─── API layer ────────────────────────────────────────────────────────────────
+// These functions are the only place fetch() is called for tasks.
+// Each one handles auth headers, checks for errors, re-fetches, and re-renders.
+// Event handlers below just call these — they never call fetch() directly.
+
+async function fetchTasks() {
+  const token = localStorage.getItem('token');
+  const response = await fetch('/api/tasks', {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  handleUnauthorized(response);
+  const dbTasks = await response.json();
+  tasks.length = 0;
+  tasks.push(...dbTasks);
+  return tasks;
+}
+
+async function createTask(taskData) {
+  const response = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(taskData),
+  });
+  handleUnauthorized(response);
+  if (!response.ok) throw new Error('Error saving task to the server');
+  // Read the response body FIRST before re-fetching, otherwise the stream is consumed
+  const result = await response.json();
+  await fetchTasks();
+  renderTasksByStatus(tasks);
+  return result;
+}
+
+async function updateTask(taskId, taskData) {
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(taskData),
+  });
+  handleUnauthorized(response);
+  if (!response.ok) throw new Error('Error updating task on the server');
+  const result = await response.json();
+  await fetchTasks();
+  renderTasksByStatus(tasks);
+  return result;
+}
+
+async function deleteTask(taskId) {
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  handleUnauthorized(response);
+  if (!response.ok) throw new Error('Error deleting task from the server');
+  await fetchTasks();
+  renderTasksByStatus(tasks);
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────────
 
 function createTaskCard(task, num) {
   const template = document.getElementById('taskCardTemplate');
@@ -192,15 +115,16 @@ function createTaskCard(task, num) {
   };
   taskCard.style.borderLeftColor = statusColors[task.status] || 'var(--bs-primary)';
 
-  taskCard.querySelector('.task-title').textContent = task.title;
+  taskCard.querySelector('.task-title').textContent       = task.title;
   taskCard.querySelector('.task-description').textContent = task.description || '';
-  taskCard.querySelector('p.task-meta').textContent = `#${num} • Due ${formatDate(task.due_date)}`;
-  taskCard.querySelector('.task-assignee').textContent = task.assignee || '';
-  taskCard.querySelector('.task-priority').textContent = task.priority;
+  taskCard.querySelector('p.task-meta').textContent       = `#${num} • Due ${formatDate(task.due_date)}`;
+  taskCard.querySelector('.task-assignee').textContent    = task.assignee || '';
+  taskCard.querySelector('.task-priority').textContent    = task.priority;
   taskCard.querySelector('.btn-edit-task').addEventListener('click', () => openEditModal(task.id));
+
   const locEl = taskCard.querySelector('.task-location');
   if (task.worksite_name) {
-    locEl.textContent = `${task.worksite_name}`;
+    locEl.textContent = task.worksite_name;
     locEl.classList.remove('d-none');
   }
 
@@ -208,19 +132,19 @@ function createTaskCard(task, num) {
 }
 
 function renderTasksByStatus(taskList) {
-  const taskLists = document.querySelectorAll('[data-status]');
-  const sorted = [...taskList].sort((a, b) => a.id - b.id);
+  const taskLists  = document.querySelectorAll('[data-status]');
+  const sorted     = [...taskList].sort((a, b) => a.id - b.id);
   const displayNum = new Map(sorted.map((t, i) => [t.id, i + 1]));
 
   taskLists.forEach((columnBody) => {
-    const status = columnBody.dataset.status;
+    const status        = columnBody.dataset.status;
     const tasksInColumn = taskList.filter((t) => t.status === status);
 
     columnBody.innerHTML = '';
 
     if (tasksInColumn.length === 0) {
       const emptyState = document.createElement('p');
-      emptyState.className = 'text-secondary small mb-0';
+      emptyState.className   = 'text-secondary small mb-0';
       emptyState.textContent = 'No tasks yet.';
       columnBody.appendChild(emptyState);
     } else {
@@ -232,6 +156,8 @@ function renderTasksByStatus(taskList) {
   });
 }
 
+// ─── Edit modal state ─────────────────────────────────────────────────────────
+
 let _editTaskWorksite = null;
 
 function openEditModal(taskId) {
@@ -242,7 +168,7 @@ function openEditModal(taskId) {
   document.getElementById('editTaskTitle').value       = task.title;
   document.getElementById('editTaskDescription').value = task.description || '';
   document.getElementById('editTaskAssignee').value    = task.assignee || '';
-  document.getElementById('editTaskDueDate').value = task.due_date ? task.due_date.split('T')[0] : '';
+  document.getElementById('editTaskDueDate').value     = task.due_date ? task.due_date.split('T')[0] : '';
   document.getElementById('editTaskPriority').value    = task.priority;
   document.getElementById('editTaskStatus').value      = task.status;
 
@@ -254,16 +180,19 @@ function openEditModal(taskId) {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('editTaskModal')).show();
 }
 
+// ─── Event handlers ───────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', async () => {
   tasks = await fetchTasks();
   renderTasksByStatus(tasks);
 
-  const addTaskModalEl = document.getElementById('addTaskModal');
+  const addTaskModalEl  = document.getElementById('addTaskModal');
+  const editTaskModalEl = document.getElementById('editTaskModal');
 
-  addTaskModalEl.addEventListener('shown.bs.modal', () => addMap.init());
+  // Map lifecycle
+  addTaskModalEl.addEventListener('shown.bs.modal',  () => addMap.init());
   addTaskModalEl.addEventListener('hidden.bs.modal', () => addMap.reset());
 
-  const editTaskModalEl = document.getElementById('editTaskModal');
   editTaskModalEl.addEventListener('shown.bs.modal', async () => {
     await editMap.init();
     if (_editTaskWorksite) {
@@ -271,8 +200,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       _editTaskWorksite = null;
     }
   });
-  editTaskModalEl.addEventListener('hidden.bs.modal', () => editMap.reset());
+  editTaskModalEl.addEventListener('hidden.bs.modal', () => {
+    editMap.reset();
+    document.getElementById('editTaskForm').classList.remove('was-validated');
+    ['editTaskTitle', 'editTaskPriority', 'editTaskStatus'].forEach(id => {
+      document.getElementById(id).classList.remove('is-invalid');
+    });
+  });
 
+  // ── Add task ──────────────────────────────────────────────────────────────
   document.getElementById('saveTaskBtn').addEventListener('click', async () => {
     const form       = document.getElementById('addTaskForm');
     const titleEl    = document.getElementById('taskTitle');
@@ -284,16 +220,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let valid = true;
     [titleEl, priorityEl, statusEl].forEach((el) => {
-      if (!el.value.trim()) {
-        el.classList.add('is-invalid');
-        valid = false;
-      } else {
-        el.classList.remove('is-invalid');
-      }
+      if (!el.value.trim()) { el.classList.add('is-invalid');    valid = false; }
+      else                  { el.classList.remove('is-invalid'); }
     });
     if (!valid) return;
 
-    // Create worksite from map selection
     let worksite_id = null;
     const loc = addMap.getSelection();
     if (loc) {
@@ -305,19 +236,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (wsRes.ok) worksite_id = (await wsRes.json()).id;
     }
 
-    const newTask = {
-      title:       titleEl.value.trim(),
-      description: descEl.value.trim(),
-      priority:    priorityEl.value,
-      status:      statusEl.value,
-      due_date:    dueDateEl.value || null,
-      assignee:    assigneeEl.value.trim(),
-      worksite_id,
-    };
-
     try {
-      await createTask(newTask);
-      renderTasksByStatus(tasks);
+      await createTask({
+        title:       titleEl.value.trim(),
+        description: descEl.value.trim(),
+        priority:    priorityEl.value,
+        status:      statusEl.value,
+        due_date:    dueDateEl.value || null,
+        assignee:    assigneeEl.value.trim(),
+        worksite_id,
+      });
+      // createTask() already re-fetches and re-renders
       form.reset();
       [titleEl, priorityEl, statusEl].forEach((el) => el.classList.remove('is-invalid'));
       bootstrap.Modal.getInstance(addTaskModalEl).hide();
@@ -326,6 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // ── Update task ───────────────────────────────────────────────────────────
   document.getElementById('updateTaskBtn').addEventListener('click', async () => {
     const form       = document.getElementById('editTaskForm');
     const titleEl    = document.getElementById('editTaskTitle');
@@ -334,8 +264,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let valid = true;
     [titleEl, priorityEl, statusEl].forEach((el) => {
-      if (!el.value.trim()) { el.classList.add('is-invalid'); valid = false; }
-      else { el.classList.remove('is-invalid'); }
+      if (!el.value.trim()) { el.classList.add('is-invalid');    valid = false; }
+      else                  { el.classList.remove('is-invalid'); }
     });
     if (!valid) { form.classList.add('was-validated'); return; }
 
@@ -343,7 +273,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
-    // Reuse existing worksite if location unchanged, create new if changed, null if cleared
     let worksite_id = null;
     const loc = editMap.getSelection();
     if (loc) {
@@ -362,57 +291,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    const headers = { 'Content-Type': 'application/json' };
-    const token = localStorage.getItem('token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
     try {
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          title:       titleEl.value.trim(),
-          description: document.getElementById('editTaskDescription').value.trim(),
-          assignee:    document.getElementById('editTaskAssignee').value.trim(),
-          due_date:    document.getElementById('editTaskDueDate').value || null,
-          priority:    priorityEl.value,
-          status:      statusEl.value,
-          worksite_id,
-        }),
+      // Calls updateTask() — no inline fetch here
+      await updateTask(id, {
+        title:       titleEl.value.trim(),
+        description: document.getElementById('editTaskDescription').value.trim(),
+        assignee:    document.getElementById('editTaskAssignee').value.trim(),
+        due_date:    document.getElementById('editTaskDueDate').value || null,
+        priority:    priorityEl.value,
+        status:      statusEl.value,
+        worksite_id,
       });
-      if (!res.ok) throw new Error();
-      await fetchTasks();
-      renderTasksByStatus(tasks);
+      // updateTask() already re-fetches and re-renders
       bootstrap.Modal.getInstance(editTaskModalEl).hide();
     } catch {
       showError('Failed to update task. Please try again.');
     }
   });
- 
-  // Delete Task
+
+  // ── Delete task ───────────────────────────────────────────────────────────
   document.getElementById('deleteTaskBtn').addEventListener('click', async () => {
     const id = parseInt(document.getElementById('editTaskId').value, 10);
     if (!confirm('Delete this task? This cannot be undone.')) return;
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: 'DELETE',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error();
-      tasks = tasks.filter(t => t.id !== id);
-      renderTasksByStatus(tasks);
+      // Calls deleteTask() — no inline fetch here
+      await deleteTask(id);
+      // deleteTask() already re-fetches and re-renders
       bootstrap.Modal.getInstance(editTaskModalEl).hide();
     } catch {
       showError('Failed to delete task. Please try again.');
     }
-  });
-
-  // Reset error handling on modal close
-  editTaskModalEl.addEventListener('hidden.bs.modal', () => {
-    document.getElementById('editTaskForm').classList.remove('was-validated');
-    ['editTaskTitle', 'editTaskPriority', 'editTaskStatus'].forEach(id => {
-      document.getElementById(id).classList.remove('is-invalid');
-    });
   });
 });
