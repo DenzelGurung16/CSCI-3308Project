@@ -92,54 +92,102 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ') && authHeader.slice(7);
   if (token) {
-    try { created_by = jwt.verify(token, process.env.JWT_SECRET).id; } catch {}
+    try { 
+      created_by = jwt.verify(token, process.env.JWT_SECRET).id; 
+    } catch(err) {
+      console.error('Token verification failed:', err.message);
+    }
   }
 
+  const { title, description, status, due_date, priority, worksite_id } = req.body;
+  
+  // Validate required fields
+  if (!title) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  // FIXED: Use parameterized queries ($1, $2, etc.) instead of ${variables}
   const query = `
     INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id)
-    VALUES (${title}, ${description}, ${status}, ${due_date}, ${created_by}, ${priority}, ${worksite_id})
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING id, created_at;
   `;
+  
   try {
-    const result = await db.one(query, {
-      title: req.body.title,
-      description: req.body.description,
-      status: req.body.status || 'backlog',
-      due_date: req.body.due_date || null,
+    const result = await db.one(query, [
+      title,
+      description || null,
+      status || 'backlog',
+      due_date || null,
       created_by,
-      priority: req.body.priority || 'medium',
-      worksite_id: req.body.worksite_id || null,
-    });
+      priority || 'medium',
+      worksite_id || null
+    ]);
     res.status(201).json(result);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create task' });
+    console.error('Task creation error:', err);
+    res.status(500).json({ error: 'Failed to create task', details: err.message });
   }
 });
 
 // Update task
 app.patch('/api/tasks/:id', authenticateToken, async (req, res) => {
+  const { title, description, status, due_date, assignee, priority, worksite_id } = req.body;
+  const taskId = parseInt(req.params.id);
+  
+  // Build dynamic update query based on provided fields
+  const updates = [];
+  const values = [];
+  let valueCounter = 1;
+  
+  if (title !== undefined) {
+    updates.push(`title = $${valueCounter++}`);
+    values.push(title);
+  }
+  if (description !== undefined) {
+    updates.push(`description = $${valueCounter++}`);
+    values.push(description);
+  }
+  if (status !== undefined) {
+    updates.push(`status = $${valueCounter++}`);
+    values.push(status);
+  }
+  if (due_date !== undefined) {
+    updates.push(`due_date = $${valueCounter++}`);
+    values.push(due_date);
+  }
+  if (assignee !== undefined) {
+    updates.push(`assignee = $${valueCounter++}`);
+    values.push(assignee);
+  }
+  if (priority !== undefined) {
+    updates.push(`priority = $${valueCounter++}`);
+    values.push(priority);
+  }
+  if (worksite_id !== undefined) {
+    updates.push(`worksite_id = $${valueCounter++}`);
+    values.push(worksite_id);
+  }
+  
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+  
+  values.push(taskId);
   const query = `
     UPDATE tasks
-    SET title = ${title}, description = ${description}, status = ${status},
-        due_date = ${due_date}, assignee = ${assignee}, priority = ${priority},
-        worksite_id = ${worksite_id}
-    WHERE id = ${id}
+    SET ${updates.join(', ')}
+    WHERE id = $${valueCounter}
+    RETURNING *
   `;
+  
   try {
-    const result = await db.result(query, {
-      id: parseInt(req.params.id),
-      title: req.body.title,
-      description: req.body.description || null,
-      status: req.body.status,
-      due_date: req.body.due_date || null,
-      assignee: req.body.assignee || null,
-      priority: req.body.priority,
-      worksite_id: req.body.worksite_id ?? null,
-    });
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Task not found' });
-    res.status(200).json({ success: true });
+    const result = await db.oneOrNone(query, values);
+    if (!result) return res.status(404).json({ error: 'Task not found' });
+    res.status(200).json({ success: true, task: result });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update task' });
+    console.error('Task update error:', err);
+    res.status(500).json({ error: 'Failed to update task', details: err.message });
   }
 });
 
