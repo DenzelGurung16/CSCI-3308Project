@@ -127,7 +127,7 @@ async function updateTask(taskId, taskData) {
   }
   
   const response = await fetch(`/api/tasks/${taskId}`, {
-    method: 'PATCH',  // ✅ Changed from PUT to PATCH
+    method: 'PATCH',  
     headers: headers,
     body: JSON.stringify(taskData),
   });
