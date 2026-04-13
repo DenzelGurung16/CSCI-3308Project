@@ -54,15 +54,6 @@ app.use(session({
   },
 }));
 
-//Routes
-const auth = require('./routes/auth');
-auth.init(pool);
-app.use('/api/auth', auth.router);
-const { authenticateToken } = auth;
-
-const worksites = require('./routes/worksites');
-worksites.init(pool);
-app.use('/api/worksites', worksites.router);
 app.get('/api/config', (req, res) => {
   res.json({ googleMapsKey: process.env.GOOGLE_MAPS_API_KEY || '' });
 });
@@ -97,8 +88,8 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
   }
 
   const query = `
-    INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id, assignee)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id)
+    VALUES ($\{title\}, $\{description\}, $\{status\}, $\{due_date\}, $\{created_by\}, $\{priority\}, $\{worksite_id\})
     RETURNING id, created_at;
   `;
   try {
@@ -155,6 +146,15 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Routes
+const auth = require('./routes/auth');
+auth.init(pool);
+app.use('/api/auth', auth.router);
+const { authenticateToken } = auth;
+
+const worksites = require('./routes/worksites');
+worksites.init(pool);
+app.use('/api/worksites', worksites.router);
 
 // Start the server
 app.listen(port, () => {
