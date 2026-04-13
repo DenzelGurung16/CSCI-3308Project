@@ -43,7 +43,7 @@ INSERT INTO tasks (title, description, status, priority, created_by, worksite_id
 VALUES (
     'Test Task',
     'This is a validation test task.',
-    'todo',
+    'backlog',
     'medium',
     (SELECT id FROM users WHERE username = 'test_user'),
     (SELECT id FROM worksites WHERE name = 'Test Worksite')
