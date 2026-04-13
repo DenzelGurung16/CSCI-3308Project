@@ -4,9 +4,7 @@ const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
 const path = require('path');
-const jwt = require('jsonwebtoken');
 const db = require('./src/resources/db.js');
-
 
 if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is not set');
 if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not set');
@@ -14,7 +12,6 @@ if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not set');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Single DB connection pool using POSTGRES_* vars
 const pool = new Pool({
   user: process.env.POSTGRES_USER,
   password: process.env.POSTGRES_PASSWORD,
@@ -25,7 +22,7 @@ const pool = new Pool({
 
 app.use(express.json());
 
-// Static files 
+// Static files
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.use('/pages', express.static(path.join(__dirname, 'pages')));
 app.use('/scripts', express.static(path.join(__dirname, 'scripts')));
@@ -54,7 +51,7 @@ app.use(session({
   },
 }));
 
-// Routes
+// Auth Routes
 const auth = require('./routes/auth');
 auth.init(pool);
 app.use('/api/auth', auth.router);
@@ -74,7 +71,7 @@ app.get('/welcome', (req, res) => {
   res.status(200).json({ status: 'success', message: 'Welcome!', visits: req.session.visits });
 });
 
-// Get tasks
+// Get tasks — workers only see their assigned tasks, admins/managers see all
 app.get('/api/tasks', authenticateToken, async (req, res) => {
   try {
     let tasks;
@@ -84,9 +81,7 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
          FROM tasks t
          LEFT JOIN worksites w ON w.id = t.worksite_id
          WHERE t.created_by = $1
-            OR t.id IN (
-              SELECT task_id FROM task_assignments WHERE user_id = $1
-            )`,
+            OR t.id IN (SELECT task_id FROM task_assignments WHERE user_id = $1)`,
         [req.user.id]
       );
     } else {
@@ -102,7 +97,7 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
   }
 });
 
-// Create task
+// Create task — managers and admins only
 app.post('/api/tasks', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   const query = `
     INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id)
@@ -125,7 +120,7 @@ app.post('/api/tasks', authenticateToken, requireRole('admin', 'manager'), async
   }
 });
 
-// Update task
+// Update task — managers and admins only
 app.patch('/api/tasks/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   const query = `
     UPDATE tasks
@@ -152,7 +147,7 @@ app.patch('/api/tasks/:id', authenticateToken, requireRole('admin', 'manager'), 
   }
 });
 
-// Delete task
+// Delete task — managers and admins only
 app.delete('/api/tasks/:id', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
   try {
     const result = await db.result('DELETE FROM tasks WHERE id = $1', [req.params.id]);
@@ -163,12 +158,9 @@ app.delete('/api/tasks/:id', authenticateToken, requireRole('admin', 'manager'),
   }
 });
 
-
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
-
-
 
 module.exports = app;
