@@ -58,7 +58,7 @@ app.use(session({
 const auth = require('./routes/auth');
 auth.init(pool);
 app.use('/api/auth', auth.router);
-const { authenticateToken } = auth;
+const { authenticateToken, requireRole } = auth;
 
 const worksites = require('./routes/worksites');
 worksites.init(pool);
