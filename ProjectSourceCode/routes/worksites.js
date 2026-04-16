@@ -6,10 +6,24 @@ function init(pgPool) {
   pool = pgPool;
 }
 
-// Get worksites
+// Get worksites- Workers only see their worksites
+//                Admin/Manager see all worksites
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM worksites WHERE is_active = TRUE ORDER BY name');
+    let result:
+      if(req.user &&req.user.role === 'worker'){
+      result = await pool.query(
+        `Select id, name, address, city, state, is_active
+        FROM worksites
+        WHERE id = (Select worksite_id FROM users WHERE id = $1)
+          AND is_active = TRUE`,
+        [req.user.id]
+      );
+    }else{
+     result = await pool.query(
+       'SELECT * FROM worksites WHERE is_active = TRUE ORDER BY name'
+       );
+    }
     res.json(result.rows);
   } catch (err) {
     console.error('Get worksites error:', err);
@@ -17,8 +31,12 @@ router.get('/', async (req, res) => {
   }
 });
 
-// create worksite, returns id
+// create worksite, returns id (Only for admin/manager)
 router.post('/', async (req, res) => {
+  if(req.user && req.user.role === 'worker'){
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  {
   const { name, address, city, state, lat, lng } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
 
