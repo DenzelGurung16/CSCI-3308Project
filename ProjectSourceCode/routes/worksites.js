@@ -10,7 +10,7 @@ function init(pgPool) {
 //                Admin/Manager see all worksites
 router.get('/', async (req, res) => {
   try {
-    let result:
+    let result;
       if(req.user &&req.user.role === 'worker'){
       result = await pool.query(
         `Select id, name, address, city, state, is_active
@@ -51,6 +51,6 @@ router.post('/', async (req, res) => {
     console.error('Create worksite error:', err);
     res.status(500).json({ error: 'Create worksite error' });
   }
-});
+}});
 
 module.exports = { router, init };
