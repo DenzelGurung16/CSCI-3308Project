@@ -21,7 +21,7 @@ Task Tracker is a Dockerized work-order management app for coordinating tasks ac
 - Service status history graph
 
 
-## Tech Stack
+## Tools
 
 - Node.js 22
 - Express 5
