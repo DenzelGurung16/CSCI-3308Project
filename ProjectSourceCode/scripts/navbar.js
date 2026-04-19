@@ -1,6 +1,5 @@
 (function () {
   const APP_NAME = 'Task Tracker 0.0.2';
-  const TEAM_NAME = 'Team Choo Choo Trains';
 
   const links = [
     { label: 'Home', href: '/' },
@@ -72,18 +71,6 @@
     button.addEventListener('click', openRegisterModal);
 
     li.appendChild(button);
-    return li;
-  }
-
-  function createTeamItem() {
-    const li = document.createElement('li');
-    li.className = 'nav-item ms-lg-2';
-
-    const span = document.createElement('span');
-    span.className = 'navbar-text text-white-50';
-    span.textContent = TEAM_NAME;
-
-    li.appendChild(span);
     return li;
   }
 
@@ -170,19 +157,18 @@
     const list = nav.querySelector('.navbar-nav');
     links.forEach((link) => list.appendChild(createNavLink(link)));
 
+    const statusItem = document.createElement('li');
+    statusItem.className = 'nav-item';
+    statusItem.innerHTML = '<button class="btn btn-outline-light btn-sm fw-semibold" type="button" id="serviceStatusBtn">Service Status</button>';
+    statusItem.querySelector('button').addEventListener('click', openServiceStatusModal);
+    list.appendChild(statusItem);
+
     if (user) {
       list.appendChild(createUserItem(user));
     } else {
       list.appendChild(createLoginButton());
       list.appendChild(createRegisterButton());
     }
-
-    const statusItem = document.createElement('li');
-    statusItem.className = 'nav-item';
-    statusItem.innerHTML = '<button class="btn btn-outline-light btn-sm fw-semibold" type="button" id="serviceStatusBtn">Service Status</button>';
-    statusItem.querySelector('button').addEventListener('click', openServiceStatusModal);
-    list.appendChild(statusItem);
-    list.appendChild(createTeamItem());
 
     return nav;
   }

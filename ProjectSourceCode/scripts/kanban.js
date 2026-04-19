@@ -84,7 +84,7 @@ async function createTask(taskData) {
   handleUnauthorized(response);
   if (!response.ok) throw new Error('Error saving task to the server');
   await fetchTasks();
-  renderTasksByStatus(tasks);
+  renderKanbanTasks();
   return await response.json();
 }
 
@@ -192,7 +192,7 @@ function setupDropZone(columnEl) {
     }
 
     task.status = newStatus;
-    renderTasksByStatus(tasks);
+    renderKanbanTasks();
 
     try {
       const res = await fetch(`/api/tasks/${draggedTaskId}`, {
@@ -211,11 +211,11 @@ function setupDropZone(columnEl) {
       handleUnauthorized(res);
       if (!res.ok) throw new Error();
       await fetchTasks();
-      renderTasksByStatus(tasks);
+      renderKanbanTasks();
     } catch {
       showError('Failed to update task status. Please try again.');
       await fetchTasks();
-      renderTasksByStatus(tasks);
+      renderKanbanTasks();
     }
   });
 }
@@ -229,10 +229,225 @@ const statusLabels = {
 };
 
 const priorityBadgeClass = {
-  low:    'text-bg-secondary',
+  low:    'text-bg-success',
   medium: 'text-bg-warning',
   high:   'text-bg-danger',
 };
+
+const kanbanFilterProperties = {
+  task: { label: 'Task' },
+  assignee: { label: 'Assignee' },
+  worksite: { label: 'Worksite' },
+  priority: { label: 'Priority' },
+};
+
+const kanbanPriorityFilters = [
+  { value: 'high', label: 'High', className: 'text-bg-danger' },
+  { value: 'medium', label: 'Medium', className: 'text-bg-warning' },
+  { value: 'low', label: 'Low', className: 'text-bg-success' },
+];
+
+let kanbanSearchFilters = [];
+let kanbanDraftFilter = null;
+
+function includesText(value, query) {
+  return String(value || '').toLowerCase().includes(query);
+}
+
+function taskFilterText(task, property) {
+  if (property === 'task') return `${task.title} ${task.description}`;
+  if (property === 'assignee') return task.assignee;
+  if (property === 'worksite') return `${task.worksite_name} ${task.worksite_address}`;
+  if (property === 'priority') return task.priority;
+  return '';
+}
+
+function hasActiveKanbanFilters() {
+  return Boolean(kanbanSearchFilters.length);
+}
+
+function getFilteredTasks() {
+  return tasks.filter((task) => {
+    return kanbanSearchFilters.every((filter) =>
+      includesText(taskFilterText(task, filter.property), filter.value.toLowerCase())
+    );
+  });
+}
+
+function renderKanbanTasks() {
+  renderTasksByStatus(getFilteredTasks());
+}
+
+function createCommittedSearchToken(filter, index) {
+  const token = document.createElement('span');
+  token.className = `kanban-search-token badge rounded-pill ${filter.className || 'text-bg-secondary'} d-inline-flex align-items-center gap-1 py-2 px-2`;
+
+  const label = document.createElement('span');
+  label.className = 'fw-semibold';
+  label.textContent = kanbanFilterProperties[filter.property]?.label || filter.property;
+
+  const divider = document.createElement('span');
+  divider.className = 'text-white-50';
+  divider.textContent = '|';
+
+  const value = document.createElement('span');
+  value.className = 'kanban-search-token-value';
+  value.textContent = filter.displayValue || filter.value;
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'btn-close btn-close-white kanban-search-token-remove ms-1';
+  remove.setAttribute('aria-label', 'Remove filter');
+  remove.addEventListener('click', (event) => {
+    event.stopPropagation();
+    kanbanSearchFilters.splice(index, 1);
+    renderKanbanSearchBuilder();
+    renderKanbanTasks();
+  });
+
+  token.append(label, divider, value, remove);
+  return token;
+}
+
+function commitDraftFilter() {
+  if (!kanbanDraftFilter) return;
+  const input = document.getElementById('kanbanSearchDraftInput');
+  const value = input?.value.trim() || '';
+  if (value) {
+    kanbanSearchFilters.push({ property: kanbanDraftFilter.property, value });
+  }
+  kanbanDraftFilter = null;
+  renderKanbanSearchBuilder();
+  renderKanbanTasks();
+}
+
+function cancelDraftFilter() {
+  kanbanDraftFilter = null;
+  renderKanbanSearchBuilder();
+}
+
+function createDraftSearchToken() {
+  const draft = document.createElement('span');
+  draft.className = 'kanban-search-draft d-inline-flex align-items-center gap-1 py-1 px-2';
+
+  const label = document.createElement('span');
+  label.className = 'fw-semibold small';
+  label.textContent = kanbanFilterProperties[kanbanDraftFilter.property]?.label || kanbanDraftFilter.property;
+
+  const divider = document.createElement('span');
+  divider.className = 'text-secondary small';
+  divider.textContent = '|';
+
+  if (kanbanDraftFilter.property === 'priority') {
+    draft.classList.add('text-bg-light');
+
+    const dropdown = document.createElement('span');
+    dropdown.className = 'dropdown';
+
+    const button = document.createElement('button');
+    button.id = 'kanbanSearchDraftInput';
+    button.type = 'button';
+    button.className = 'btn btn-sm btn-outline-secondary dropdown-toggle py-0';
+    button.setAttribute('data-bs-toggle', 'dropdown');
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = 'Select priority';
+
+    const menu = document.createElement('ul');
+    menu.className = 'dropdown-menu';
+    kanbanPriorityFilters.forEach((priority) => {
+      const item = document.createElement('li');
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = `dropdown-item d-flex align-items-center gap-2`;
+      option.innerHTML = `<span class="badge ${priority.className}">${priority.label}</span>`;
+      option.addEventListener('click', () => {
+        kanbanSearchFilters.push({
+          property: 'priority',
+          value: priority.value,
+          displayValue: priority.label,
+          className: priority.className,
+        });
+        kanbanDraftFilter = null;
+        renderKanbanSearchBuilder();
+        renderKanbanTasks();
+      });
+      item.appendChild(option);
+      menu.appendChild(item);
+    });
+
+    button.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelDraftFilter();
+      }
+    });
+
+    dropdown.append(button, menu);
+    draft.append(label, divider, dropdown);
+    setTimeout(() => bootstrap.Dropdown.getOrCreateInstance(button).show(), 0);
+    return draft;
+  }
+
+  const input = document.createElement('input');
+  input.id = 'kanbanSearchDraftInput';
+  input.type = 'search';
+  input.placeholder = 'value';
+  input.autocomplete = 'off';
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitDraftFilter();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelDraftFilter();
+    }
+  });
+  input.addEventListener('blur', () => {
+    setTimeout(commitDraftFilter, 100);
+  });
+
+  draft.append(label, divider, input);
+  return draft;
+}
+
+function renderKanbanSearchBuilder() {
+  const builder = document.getElementById('kanbanSearchBuilder');
+  const placeholder = document.getElementById('kanbanSearchPlaceholder');
+  const dropdown = document.getElementById('kanbanFilterAddBtn')?.closest('.dropdown');
+  if (!builder || !placeholder || !dropdown) return;
+
+  builder.querySelectorAll('.kanban-search-token, .kanban-search-draft').forEach((el) => el.remove());
+  kanbanSearchFilters.forEach((filter, index) => {
+    builder.insertBefore(createCommittedSearchToken(filter, index), placeholder);
+  });
+  if (kanbanDraftFilter) {
+    builder.insertBefore(createDraftSearchToken(), placeholder);
+  }
+
+  placeholder.classList.toggle('d-none', Boolean(kanbanSearchFilters.length || kanbanDraftFilter));
+  document.getElementById('kanbanSearchDraftInput')?.focus();
+}
+
+function startDraftFilter(property) {
+  commitDraftFilter();
+  kanbanDraftFilter = { property };
+  renderKanbanSearchBuilder();
+}
+
+function bindKanbanFilters() {
+  document.querySelectorAll('[data-kanban-filter-property]').forEach((button) => {
+    button.addEventListener('click', () => startDraftFilter(button.dataset.kanbanFilterProperty));
+  });
+
+  const builder = document.getElementById('kanbanSearchBuilder');
+  const addBtn = document.getElementById('kanbanFilterAddBtn');
+  builder?.addEventListener('click', (event) => {
+    if (event.target.closest('.kanban-search-token-remove, .dropdown, .kanban-search-draft')) return;
+    bootstrap.Dropdown.getOrCreateInstance(addBtn).show();
+  });
+  renderKanbanSearchBuilder();
+}
 
 function openViewModal(taskId) {
   const task = tasks.find(t => t.id === taskId);
@@ -297,7 +512,9 @@ function createTaskCard(task, num) {
   const dueDateStr = task.due_date ? `Due ${formatDate(task.due_date)}` : 'No due date';
   taskCard.querySelector('p.task-meta').textContent       = `#${num} • ${dueDateStr}`;
   taskCard.querySelector('.task-assignee').textContent    = task.assignee || '';
-  taskCard.querySelector('.task-priority').textContent    = task.priority;
+  const priorityBadge = taskCard.querySelector('.task-priority');
+  priorityBadge.textContent = task.priority;
+  priorityBadge.className = `task-priority badge ${priorityBadgeClass[task.priority] || 'text-bg-light border'}`;
 
   const user = JSON.parse(localStorage.getItem('user'));
   const editBtn = taskCard.querySelector('.btn-edit-task');
@@ -332,11 +549,12 @@ function renderTasksByStatus(taskList) {
 
   // Merge any new task ids into taskOrder (preserving existing order)
   const knownIds = new Set(taskOrder);
-  taskList.forEach(t => { if (!knownIds.has(t.id)) taskOrder.push(t.id); });
-  // Remove ids no longer in taskList
-  taskOrder = taskOrder.filter(id => taskList.some(t => t.id === id));
+  tasks.forEach(t => { if (!knownIds.has(t.id)) taskOrder.push(t.id); });
+  // Remove ids no longer in the full task set
+  taskOrder = taskOrder.filter(id => tasks.some(t => t.id === id));
 
   const displayNum = new Map(taskOrder.map((id, i) => [id, i + 1]));
+  const emptyText = hasActiveKanbanFilters() ? 'No matching tasks.' : 'No tasks yet.';
 
   taskLists.forEach((columnBody) => {
     const status = columnBody.dataset.status;
@@ -347,7 +565,7 @@ function renderTasksByStatus(taskList) {
     if (tasksInColumn.length === 0) {
       const emptyState = document.createElement('p');
       emptyState.className = 'text-secondary small mb-0';
-      emptyState.textContent = 'No tasks yet.';
+      emptyState.textContent = emptyText;
       columnBody.appendChild(emptyState);
     } else {
       const ordered = tasksInColumn.sort((a, b) => taskOrder.indexOf(a.id) - taskOrder.indexOf(b.id));
@@ -382,9 +600,10 @@ function openEditModal(taskId) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  bindKanbanFilters();
   await applyRoleUI();
   tasks = await fetchTasks();
-  renderTasksByStatus(tasks);
+  renderKanbanTasks();
   document.querySelectorAll('.task-list').forEach(col => setupDropZone(col));
 
   const addTaskModalEl = document.getElementById('addTaskModal');
@@ -500,7 +719,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       handleUnauthorized(res);
       if (!res.ok) throw new Error();
       await fetchTasks();
-      renderTasksByStatus(tasks);
+      renderKanbanTasks();
       bootstrap.Modal.getInstance(editTaskModalEl).hide();
     } catch {
       showError('Failed to update task. Please try again.');
@@ -518,7 +737,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       handleUnauthorized(res);
       if (!res.ok) throw new Error();
       tasks = tasks.filter(t => t.id !== id);
-      renderTasksByStatus(tasks);
+      renderKanbanTasks();
       bootstrap.Modal.getInstance(editTaskModalEl).hide();
     } catch {
       showError('Failed to delete task. Please try again.');

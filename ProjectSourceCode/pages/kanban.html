@@ -32,6 +32,27 @@
       .task-detail-value { font-size: 0.95rem; }
       .task-detail-section { padding: 0.75rem 0; border-bottom: 1px solid #f0f0f0; }
       .task-detail-section:last-child { border-bottom: none; }
+
+      /* Search filter builder */
+      .kanban-search-builder { min-height: 2.55rem; cursor: text; }
+      .kanban-search-token { position: relative; max-width: 100%; }
+      .kanban-search-token-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12rem; }
+      .kanban-search-token-remove { width: 0.65rem; height: 0.65rem; opacity: 0; transition: opacity 0.15s ease; }
+      .kanban-search-token:hover .kanban-search-token-remove,
+      .kanban-search-token:focus-within .kanban-search-token-remove { opacity: 1; }
+      .kanban-search-draft {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 999px;
+        background: var(--bs-body-bg);
+      }
+      .kanban-search-draft input {
+        width: 11rem;
+        min-width: 7rem;
+        border: 0;
+        outline: 0;
+        background: transparent;
+      }
+      .kanban-filter-add { white-space: nowrap; }
     </style>
   </head>
   <body class="bg-light text-dark">
@@ -46,6 +67,30 @@
           </div>
           <button class="btn btn-primary" data-manager-only type="button" data-bs-toggle="modal" data-bs-target="#addTaskModal">Add Task</button>
         </div>
+
+        <section class="card shadow-sm mb-4">
+          <div class="card-body">
+            <div class="row g-3 align-items-end">
+              <div class="col-12">
+                <label for="kanbanFilterAddBtn" class="form-label">Search</label>
+                <div class="kanban-search-builder form-control d-flex flex-wrap align-items-center gap-2 p-2" id="kanbanSearchBuilder">
+                  <span class="text-secondary small" id="kanbanSearchPlaceholder">Click to choose a filter</span>
+                  <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle kanban-filter-add" type="button" id="kanbanFilterAddBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                      Add filter
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="kanbanFilterAddBtn">
+                      <li><button class="dropdown-item" type="button" data-kanban-filter-property="task">Task</button></li>
+                      <li><button class="dropdown-item" type="button" data-kanban-filter-property="assignee">Assignee</button></li>
+                      <li><button class="dropdown-item" type="button" data-kanban-filter-property="worksite">Worksite</button></li>
+                      <li><button class="dropdown-item" type="button" data-kanban-filter-property="priority">Priority</button></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section class="row g-3 g-lg-4" id="kanbanBoard">
           <div class="col-12 col-md-6 col-xl-3">
