@@ -95,7 +95,7 @@ app.use('/api/auth', auth.router);
 const { authenticateToken, requireRole } = auth;
 
 const worksites = require('./routes/worksites');
-worksites.init(pool);
+worksites.init(pool, { authenticateToken, requireRole });
 app.use('/api/worksites', worksites.router);
 
 app.get('/api/config', (req, res) => {
@@ -118,6 +118,16 @@ app.get('/api/service-status', async (req, res) => {
 app.get('/welcome', (req, res) => {
   req.session.visits = (req.session.visits || 0) + 1;
   res.status(200).json({ status: 'success', message: 'Welcome!', visits: req.session.visits });
+});
+
+// Get all users 
+app.get('/api/users', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
+  try {
+    const users = await db.any('SELECT id, username FROM users ORDER BY username');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
 });
 
 // Get tasks — workers only see their assigned tasks, admins/managers see all
@@ -166,25 +176,50 @@ app.get('/api/tasks/map', authenticateToken, requireRole('admin', 'manager'), as
 
 // Create task — managers and admins only
 app.post('/api/tasks', authenticateToken, requireRole('admin', 'manager'), async (req, res) => {
-  const worksite_id = req.body.worksite_id || null;
+  const { title, description, status, due_date, priority, worksite_id, assignee } = req.body;
+  if (!due_date) {
+    return res.status(400).json({ error: 'Due date is required' });
+  }
+
   try {
+    let assigneeUser = null;
+    if (assignee) {
+      assigneeUser = await db.oneOrNone('SELECT id FROM users WHERE username = $1', [assignee]);
+      if (!assigneeUser) {
+        return res.status(400).json({ error: 'Assignee user does not exist' });
+      }
+    }
+
     const result = await db.one(
-      `INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id)
-       VALUES (\${title}, \${description}, \${status}, \${due_date}, \${created_by}, \${priority}, \${worksite_id})
+      `INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id, assignee)
+       VALUES (\${title}, \${description}, \${status}, \${due_date}, \${created_by}, \${priority}, \${worksite_id}, \${assignee})
        RETURNING id, created_at`,
       {
-        title: req.body.title,
-        description: req.body.description,
-        status: req.body.status || 'backlog',
-        due_date: req.body.due_date || null,
+        title,
+        description,
+        status: status || 'backlog',
+        due_date,
         created_by: req.user.id,
-        priority: req.body.priority || 'medium',
-        worksite_id,
+        priority: priority || 'medium',
+        worksite_id: worksite_id || null,
+        assignee: assignee || null,
       }
     );
-    if (worksite_id) {
-      await db.none('INSERT INTO task_worksite_history (task_id, worksite_id) VALUES ($1, $2)', [result.id, worksite_id]);
+
+    const actualWorksiteId = worksite_id || null;
+    if (actualWorksiteId) {
+      await db.none('INSERT INTO task_worksite_history (task_id, worksite_id) VALUES ($1, $2)', [result.id, actualWorksiteId]);
     }
+
+    if (assigneeUser) {
+      await db.none(
+        `INSERT INTO task_assignments (task_id, user_id, role)
+         VALUES ($1, $2, 'assignee')
+         ON CONFLICT (task_id, user_id) DO NOTHING`,
+        [result.id, assigneeUser.id]
+      );
+    }
+
     res.status(201).json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to create task' });
@@ -218,9 +253,33 @@ app.patch('/api/tasks/:id', authenticateToken, async (req, res) => {
     }
 
     // Managers and admins — full update
-    const new_worksite_id = req.body.worksite_id ?? null;
+    const { title, description, status, due_date, assignee, priority, worksite_id } = req.body;
+    if (!due_date) {
+      return res.status(400).json({ error: 'Due date is required' });
+    }
+
+    const validStatuses = ['backlog', 'in-progress', 'review', 'done'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    const validPriorities = ['low', 'medium', 'high'];
+    if (priority && !validPriorities.includes(priority)) {
+      return res.status(400).json({ error: 'Invalid priority value' });
+    }
+
+    let assigneeUser = null;
+    if (assignee) {
+      assigneeUser = await db.oneOrNone('SELECT id FROM users WHERE username = $1', [assignee]);
+      if (!assigneeUser) {
+        return res.status(400).json({ error: 'Assignee user does not exist' });
+      }
+    }
+
     const current = await db.oneOrNone('SELECT worksite_id FROM tasks WHERE id = $1', [taskId]);
     if (!current) return res.status(404).json({ error: 'Task not found' });
+
+    const new_worksite_id = worksite_id ?? null;
 
     await db.none(
       `UPDATE tasks
@@ -230,12 +289,12 @@ app.patch('/api/tasks/:id', authenticateToken, async (req, res) => {
        WHERE id = \${id}`,
       {
         id: taskId,
-        title: req.body.title,
-        description: req.body.description || null,
-        status: req.body.status,
-        due_date: req.body.due_date || null,
-        assignee: req.body.assignee || null,
-        priority: req.body.priority,
+        title,
+        description: description || null,
+        status,
+        due_date,
+        assignee: assignee || null,
+        priority,
         worksite_id: new_worksite_id,
       }
     );
@@ -244,22 +303,49 @@ app.patch('/api/tasks/:id', authenticateToken, async (req, res) => {
       await db.none('INSERT INTO task_worksite_history (task_id, worksite_id) VALUES ($1, $2)', [taskId, new_worksite_id]);
     }
 
+    // Sync task_assignments: clear old assignee, insert new one
+    await db.none(
+      `DELETE FROM task_assignments WHERE task_id = $1 AND role = 'assignee'`,
+      [taskId]
+    );
+    if (assigneeUser) {
+      await db.none(
+        `INSERT INTO task_assignments (task_id, user_id, role)
+         VALUES ($1, $2, 'assignee')
+         ON CONFLICT (task_id, user_id) DO NOTHING`,
+        [taskId, assigneeUser.id]
+      );
+    }
+
     res.status(200).json({ success: true });
   } catch (err) {
+    console.error('PATCH task error:', err);
     res.status(500).json({ error: 'Failed to update task' });
   }
 });
 
 // Get worksite history for a task
 app.get('/api/tasks/:id/worksite-history', authenticateToken, async (req, res) => {
+  const taskId = parseInt(req.params.id);
   try {
+    // Workers can only view history for tasks they created or are assigned to
+    if (req.user.role === 'worker') {
+      const access = await db.oneOrNone(
+        `SELECT id FROM tasks
+         WHERE id = $1
+           AND (created_by = $2 OR id IN (SELECT task_id FROM task_assignments WHERE user_id = $2))`,
+        [taskId, req.user.id]
+      );
+      if (!access) return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const history = await db.any(
       `SELECT twh.changed_at, w.name AS worksite_name, w.address, w.city, w.state
        FROM task_worksite_history twh
        LEFT JOIN worksites w ON w.id = twh.worksite_id
        WHERE twh.task_id = $1
        ORDER BY twh.changed_at DESC`,
-      [parseInt(req.params.id)]
+      [taskId]
     );
     res.json(history);
   } catch (err) {

@@ -1,7 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
 
@@ -10,9 +9,6 @@ let pool;
 function init(pgPool) {
   pool = pgPool;
 }
-
-// Rate limiter for auth endpoints
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 
 // Auth middleware
 function authenticateToken(req, res, next) {
@@ -35,7 +31,7 @@ function requireRole(...roles) {
 }
 
 // Register
-router.post('/register', authLimiter, async (req, res) => {
+router.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
   if (!username || !email || !password) {
@@ -68,7 +64,7 @@ router.post('/register', authLimiter, async (req, res) => {
 });
 
 // Login
-router.post('/login', authLimiter, async (req, res) => {
+router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {

@@ -53,6 +53,32 @@
         background: transparent;
       }
       .kanban-filter-add { white-space: nowrap; }
+
+      /* Assignee dropdown */
+      .kanban-assignee-menu {
+        position: absolute;
+        top: calc(100% + 0.25rem);
+        left: 0;
+        z-index: 1050;
+        min-width: 13rem;
+        background: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.375rem;
+        box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.12);
+        list-style: none;
+        margin: 0;
+        padding: 0.25rem 0;
+        display: none;
+      }
+      .kanban-assignee-menu li {
+        padding: 0.4rem 0.85rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .kanban-assignee-menu li:hover { background: var(--bs-tertiary-bg); }
     </style>
   </head>
   <body class="bg-light text-dark">
@@ -153,11 +179,16 @@
               </div>
               <div class="mb-3">
                 <label for="taskAssignee" class="form-label">Assignee</label>
-                <input type="text" class="form-control" id="taskAssignee" placeholder="Assignee name" />
+                <div class="position-relative">
+                  <input type="text" class="form-control" id="taskAssignee" placeholder="Assignee name" autocomplete="off" />
+                  <ul class="kanban-assignee-menu" id="taskAssigneeMenu"></ul>
+                  <div class="invalid-feedback">Please select a valid user.</div>
+                </div>
               </div>
               <div class="mb-3">
-                <label for="taskDueDate" class="form-label">Due Date</label>
-                <input type="date" class="form-control" id="taskDueDate" />
+                <label for="taskDueDate" class="form-label">Due Date <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="taskDueDate" required />
+                <div class="invalid-feedback">Please select a due date.</div>
               </div>
               <div class="mb-3">
                 <label for="taskPriority" class="form-label">Priority <span class="text-danger">*</span></label>
@@ -225,11 +256,16 @@
               </div>
               <div class="mb-3">
                 <label for="editTaskAssignee" class="form-label">Assignee</label>
-                <input type="text" class="form-control" id="editTaskAssignee" placeholder="Assignee name" />
+                <div class="position-relative">
+                  <input type="text" class="form-control" id="editTaskAssignee" placeholder="Assignee name" autocomplete="off" />
+                  <ul class="kanban-assignee-menu" id="editTaskAssigneeMenu"></ul>
+                  <div class="invalid-feedback">Please select a valid user.</div>
+                </div>
               </div>
               <div class="mb-3">
-                <label for="editTaskDueDate" class="form-label">Due Date</label>
-                <input type="date" class="form-control" id="editTaskDueDate" />
+                <label for="editTaskDueDate" class="form-label">Due Date <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="editTaskDueDate" required />
+                <div class="invalid-feedback">Please select a due date.</div>
               </div>
               <div class="mb-3">
                 <label for="editTaskPriority" class="form-label">Priority <span class="text-danger">*</span></label>
@@ -368,6 +404,7 @@
     <style>.pac-container { z-index: 9999 !important; }</style>
     <script src="../scripts/navbar.js"></script>
     <script src="../scripts/map.js"></script>
+    <script src="../scripts/user-autocomplete.js"></script>
     <script src="../scripts/kanban.js"></script>
     <script src="../scripts/notifications.js"></script>
     <script src="../scripts/chatbot.js"></script>

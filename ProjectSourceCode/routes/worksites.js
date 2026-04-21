@@ -1,28 +1,29 @@
 const express = require('express');
 const router = express.Router();
 
-let pool;
-function init(pgPool) {
+let pool, authenticateToken, requireRole;
+function init(pgPool, authMiddleware) {
   pool = pgPool;
+  authenticateToken = authMiddleware.authenticateToken;
+  requireRole = authMiddleware.requireRole;
 }
 
-// Get worksites- Workers only see their worksites
-//                Admin/Manager see all worksites
-router.get('/', async (req, res) => {
+// Get worksites — workers only see their assigned worksite, admins/managers see all
+router.get('/', (req, res, next) => authenticateToken(req, res, next), async (req, res) => {
   try {
     let result;
-      if(req.user &&req.user.role === 'worker'){
+    if (req.user.role === 'worker') {
       result = await pool.query(
-        `Select id, name, address, city, state, is_active
-        FROM worksites
-        WHERE id = (Select worksite_id FROM users WHERE id = $1)
-          AND is_active = TRUE`,
+        `SELECT id, name, address, city, state, is_active
+         FROM worksites
+         WHERE id = (SELECT worksite_id FROM users WHERE id = $1)
+           AND is_active = TRUE`,
         [req.user.id]
       );
-    }else{
-     result = await pool.query(
-       'SELECT * FROM worksites WHERE is_active = TRUE ORDER BY name'
-       );
+    } else {
+      result = await pool.query(
+        'SELECT * FROM worksites WHERE is_active = TRUE ORDER BY name'
+      );
     }
     res.json(result.rows);
   } catch (err) {
@@ -31,12 +32,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// create worksite, returns id (Only for admin/manager)
-router.post('/', async (req, res) => {
-  if(req.user && req.user.role === 'worker'){
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  {
+// Create worksite — admins/managers only
+router.post('/', (req, res, next) => authenticateToken(req, res, next), (req, res, next) => requireRole('admin', 'manager')(req, res, next), async (req, res) => {
   const { name, address, city, state, lat, lng } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
 
@@ -51,6 +48,6 @@ router.post('/', async (req, res) => {
     console.error('Create worksite error:', err);
     res.status(500).json({ error: 'Create worksite error' });
   }
-}});
+});
 
 module.exports = { router, init };

@@ -1,16 +1,22 @@
 let tasks = [];
+let addAssigneeAutocomplete = null;
+let editAssigneeAutocomplete = null;
+let addMap = null;
+let editMap = null;
 
-const addMap = TaskMap.create({
-  mapElId: 'taskMap', searchContainerId: 'mapSearchContainer',
-  pinBtnId: 'togglePinModeBtn', clearBtnId: 'clearLocationBtn',
-  labelId: 'selectedLocationLabel', hintId: 'mapHint',
-});
+function initMaps() {
+  addMap = TaskMap.create({
+    mapElId: 'taskMap', searchContainerId: 'mapSearchContainer',
+    pinBtnId: 'togglePinModeBtn', clearBtnId: 'clearLocationBtn',
+    labelId: 'selectedLocationLabel', hintId: 'mapHint',
+  });
 
-const editMap = TaskMap.create({
-  mapElId: 'editTaskMap', searchContainerId: 'editMapSearchContainer',
-  pinBtnId: 'editTogglePinModeBtn', clearBtnId: 'editClearLocationBtn',
-  labelId: 'editSelectedLocationLabel', hintId: 'editMapHint',
-});
+  editMap = TaskMap.create({
+    mapElId: 'editTaskMap', searchContainerId: 'editMapSearchContainer',
+    pinBtnId: 'editTogglePinModeBtn', clearBtnId: 'editClearLocationBtn',
+    labelId: 'editSelectedLocationLabel', hintId: 'editMapHint',
+  });
+}
 
 function showError(message) {
   document.getElementById('toastMessage').textContent = message;
@@ -363,6 +369,38 @@ function createDraftSearchToken() {
     return draft;
   }
 
+  if (kanbanDraftFilter.property === 'assignee') {
+    const wrapper = document.createElement('span');
+    wrapper.style.cssText = 'position:relative;display:inline-block;';
+
+    const input = document.createElement('input');
+    input.id = 'kanbanSearchDraftInput';
+    input.type = 'search';
+    input.placeholder = 'username';
+    input.autocomplete = 'off';
+
+    const menu = document.createElement('ul');
+    menu.className = 'kanban-assignee-menu';
+
+    new UserAutocomplete(input, menu, (u) => {
+      kanbanSearchFilters.push({ property: 'assignee', value: u.username });
+      kanbanDraftFilter = null;
+      renderKanbanSearchBuilder();
+      renderKanbanTasks();
+    });
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); commitDraftFilter(); }
+      if (e.key === 'Escape') { e.preventDefault(); cancelDraftFilter(); }
+    });
+    input.addEventListener('blur', () => setTimeout(commitDraftFilter, 150));
+
+    wrapper.append(input, menu);
+    draft.append(label, divider, wrapper);
+    setTimeout(() => input.focus(), 0);
+    return draft;
+  }
+
   const input = document.createElement('input');
   input.id = 'kanbanSearchDraftInput';
   input.type = 'search';
@@ -613,19 +651,44 @@ function openEditModal(taskId) {
     : null;
 
   document.getElementById('editTaskForm').classList.remove('was-validated');
+  ['editTaskTitle', 'editTaskPriority', 'editTaskStatus', 'editTaskAssignee', 'editTaskDueDate'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('is-invalid', 'is-valid');
+    el.setCustomValidity('');
+  });
   bootstrap.Modal.getOrCreateInstance(document.getElementById('editTaskModal')).show();
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  initMaps();
   bindKanbanFilters();
   await applyRoleUI();
   tasks = await fetchTasks();
   renderKanbanTasks();
   document.querySelectorAll('.task-list').forEach(col => setupDropZone(col));
 
+  addAssigneeAutocomplete = new UserAutocomplete(
+    document.getElementById('taskAssignee'),
+    document.getElementById('taskAssigneeMenu')
+  );
+
+  editAssigneeAutocomplete = new UserAutocomplete(
+    document.getElementById('editTaskAssignee'),
+    document.getElementById('editTaskAssigneeMenu')
+  );
+
   const addTaskModalEl = document.getElementById('addTaskModal');
   addTaskModalEl.addEventListener('shown.bs.modal', () => addMap.init());
-  addTaskModalEl.addEventListener('hidden.bs.modal', () => addMap.reset());
+  addTaskModalEl.addEventListener('hidden.bs.modal', () => {
+    addMap.reset();
+    const form = document.getElementById('addTaskForm');
+    form.classList.remove('was-validated');
+    ['taskTitle', 'taskPriority', 'taskStatus', 'taskAssignee', 'taskDueDate'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('is-invalid', 'is-valid');
+      el.setCustomValidity('');
+    });
+  });
 
   const editTaskModalEl = document.getElementById('editTaskModal');
   editTaskModalEl.addEventListener('shown.bs.modal', async () => {
@@ -635,7 +698,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       _editTaskWorksite = null;
     }
   });
-  editTaskModalEl.addEventListener('hidden.bs.modal', () => editMap.reset());
 
   document.getElementById('saveTaskBtn').addEventListener('click', async () => {
     const form       = document.getElementById('addTaskForm');
@@ -646,12 +708,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     const assigneeEl = document.getElementById('taskAssignee');
     const dueDateEl  = document.getElementById('taskDueDate');
 
+    form.classList.remove('was-validated');
     let valid = true;
-    [titleEl, priorityEl, statusEl].forEach((el) => {
-      if (!el.value.trim()) { el.classList.add('is-invalid'); valid = false; }
-      else { el.classList.remove('is-invalid'); }
+
+    // Required fields
+    [titleEl, priorityEl, statusEl, dueDateEl].forEach((el) => {
+      if (!el.value || !el.value.trim()) {
+        el.classList.add('is-invalid');
+        valid = false;
+      } else {
+        el.classList.remove('is-invalid');
+      }
     });
-    if (!valid) return;
+
+    // Assignee validation
+    if (addAssigneeAutocomplete && !addAssigneeAutocomplete.isValid()) {
+      assigneeEl.setCustomValidity('Invalid user');
+      assigneeEl.classList.add('is-invalid');
+      valid = false;
+    } else {
+      assigneeEl.setCustomValidity('');
+      assigneeEl.classList.remove('is-invalid');
+    }
+
+    if (!valid) {
+      form.classList.add('was-validated');
+      return;
+    }
 
     let worksite_id = null;
     const loc = addMap.getSelection();
@@ -689,13 +772,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     const titleEl    = document.getElementById('editTaskTitle');
     const priorityEl = document.getElementById('editTaskPriority');
     const statusEl   = document.getElementById('editTaskStatus');
+    const dueDateEl  = document.getElementById('editTaskDueDate');
+    const assigneeEl = document.getElementById('editTaskAssignee');
 
+    form.classList.remove('was-validated');
     let valid = true;
-    [titleEl, priorityEl, statusEl].forEach((el) => {
-      if (!el.value.trim()) { el.classList.add('is-invalid'); valid = false; }
-      else { el.classList.remove('is-invalid'); }
+
+    // Required fields
+    [titleEl, priorityEl, statusEl, dueDateEl].forEach((el) => {
+      if (!el.value || !el.value.trim()) {
+        el.classList.add('is-invalid');
+        valid = false;
+      } else {
+        el.classList.remove('is-invalid');
+      }
     });
-    if (!valid) { form.classList.add('was-validated'); return; }
+
+    // Assignee validation
+    if (editAssigneeAutocomplete && !editAssigneeAutocomplete.isValid()) {
+      assigneeEl.setCustomValidity('Invalid user');
+      assigneeEl.classList.add('is-invalid');
+      valid = false;
+    } else {
+      assigneeEl.setCustomValidity('');
+      assigneeEl.classList.remove('is-invalid');
+    }
+
+    if (!valid) {
+      form.classList.add('was-validated');
+      return;
+    }
 
     const id   = parseInt(document.getElementById('editTaskId').value, 10);
     const task = tasks.find(t => t.id === id);
@@ -762,9 +868,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   editTaskModalEl.addEventListener('hidden.bs.modal', () => {
+    editMap.reset();
     document.getElementById('editTaskForm').classList.remove('was-validated');
-    ['editTaskTitle', 'editTaskPriority', 'editTaskStatus'].forEach(id => {
-      document.getElementById(id).classList.remove('is-invalid');
+    ['editTaskTitle', 'editTaskPriority', 'editTaskStatus', 'editTaskAssignee', 'editTaskDueDate'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('is-invalid', 'is-valid');
+      el.setCustomValidity('');
     });
   });
 });

@@ -126,10 +126,12 @@
       item.className = 'list-group-item list-group-item-action map-task-item';
       item.innerHTML = `
         <div class="d-flex justify-content-between align-items-start gap-2">
-          <div>
+          <div class="overflow-hidden">
             <div class="fw-semibold">${escapeHtml(task.title)}</div>
             <div class="text-secondary small">${escapeHtml(task.worksite_name)}</div>
-            <div class="text-secondary small">${escapeHtml(formatDate(task.due_date))}</div>
+            ${task.assignee ? `<div class="text-secondary small">Assignee: ${escapeHtml(task.assignee)}</div>` : ''}
+            ${task.description ? `<div class="text-secondary small text-truncate" style="max-width:16rem;">${escapeHtml(task.description)}</div>` : ''}
+            <div class="text-secondary small">Due: ${escapeHtml(formatDate(task.due_date))}</div>
           </div>
           <div class="text-end flex-shrink-0">
             <span class="badge ${statusBadgeClass[task.status] || 'text-bg-secondary'}">${escapeHtml(statusLabels[task.status] || task.status)}</span>

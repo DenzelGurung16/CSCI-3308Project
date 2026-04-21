@@ -83,7 +83,7 @@
     greeting.textContent = `Hello, ${user.username}`;
 
     const logout = document.createElement('button');
-    logout.className = 'btn btn-sm btn-outline-danger';
+    logout.className = 'btn btn-sm btn-danger';
     logout.type = 'button';
     logout.textContent = 'Logout';
     logout.addEventListener('click', () => {

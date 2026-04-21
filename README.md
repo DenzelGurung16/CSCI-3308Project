@@ -41,8 +41,15 @@ Task Tracker is a Dockerized work-order management app for coordinating tasks ac
 
 - Docker Desktop
 - Docker Compose
-- Node.js and npm, if running without Docker
 - A Google Maps API key with the Maps JavaScript API and Places library enabled
+
+## Project Structure
+`index.js`: Server entry point
+`routes/`: API route definitions
+`pages/`: HTML templates
+`scripts/`: Client-side JavaScript
+`src/init_data/`: Database schema
+`test/`: Mocha test suite
 
 ## Environment
 
@@ -68,6 +75,17 @@ SESSION_SECRET=replace-with-a-long-random-session-secret
 GOOGLE_MAPS_API_KEY=replace-with-your-google-maps-api-key
 ```
 
+To generate tokens for `JWT_SECRET` and `SESSION_SECRET`, you can use one of the following commands:
+
+```bash
+# openssl
+openssl rand -base64 32
+
+# node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+
 ## Running With Docker Compose
 
 From the project source directory:
@@ -89,6 +107,16 @@ To stop the app:
 docker compose down
 ```
 Use `down -v` when you need a fresh database initialized from the SQL files again.
+
+
+## Testing
+
+Run the automated test suite using Docker:
+
+```bash
+cd ProjectSourceCode
+docker compose run web npm test
+```
 
 
 ## Authentication And Roles

@@ -1,0 +1,6 @@
+spec:
+  - test/server.spec.js
+  - test/auth.spec.js
+  - test/worksites.spec.js
+  - test/tasks.spec.js
+timeout: 10000
