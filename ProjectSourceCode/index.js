@@ -130,7 +130,6 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
          FROM tasks t
          LEFT JOIN worksites w ON w.id = t.worksite_id
          WHERE t.created_by = $1
-            OR t.assignee = $1 -- FIX 2: Check the assignee column against the user's ID
             OR t.id IN (SELECT task_id FROM task_assignments WHERE user_id = $1)`,
         [req.user.id]
       );
@@ -170,9 +169,8 @@ app.post('/api/tasks', authenticateToken, requireRole('admin', 'manager'), async
   const worksite_id = req.body.worksite_id || null;
   try {
     const result = await db.one(
-      // FIX 1: Add 'assignee' to the INSERT columns and values
-      `INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id, assignee)
-       VALUES (\${title}, \${description}, \${status}, \${due_date}, \${created_by}, \${priority}, \${worksite_id}, \${assignee})
+      `INSERT INTO tasks (title, description, status, due_date, created_by, priority, worksite_id)
+       VALUES (\${title}, \${description}, \${status}, \${due_date}, \${created_by}, \${priority}, \${worksite_id})
        RETURNING id, created_at`,
       {
         title: req.body.title,
@@ -182,7 +180,6 @@ app.post('/api/tasks', authenticateToken, requireRole('admin', 'manager'), async
         created_by: req.user.id,
         priority: req.body.priority || 'medium',
         worksite_id,
-        assignee: req.body.assignee || null, // FIX 1: Pass the assignee value to the query
       }
     );
     if (worksite_id) {
@@ -206,7 +203,6 @@ app.patch('/api/tasks/:id', authenticateToken, async (req, res) => {
         `SELECT t.id FROM tasks t
          WHERE t.id = $1
            AND (t.created_by = $2
-                OR t.assignee = $2
                 OR t.id IN (SELECT task_id FROM task_assignments WHERE user_id = $2))`,
         [taskId, req.user.id]
       );
