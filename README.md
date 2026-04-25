@@ -252,13 +252,7 @@ The Docker Postgres volume is named `group-project`.
 
 > Database changes are not showing up
 
-Docker only runs SQL files in `docker-entrypoint-initdb.d` when the database volume is first created. Reset the volume:
-
-```bash
-cd ProjectSourceCode
-docker compose down -v
-docker compose up
-```
+Docker only runs SQL files in `docker-entrypoint-initdb.d` when the database volume is first created. Reset the volume
 
 > Google Maps does not load
 
@@ -273,13 +267,7 @@ The `Service Status` modal can help identify common Google Maps API key errors.
 
 > AI assistant says `GEMINI_API_KEY is not configured on the server`
 
-Add `GEMINI_API_KEY` to `ProjectSourceCode/.env`, then restart Docker Compose:
-
-```bash
-cd ProjectSourceCode
-docker compose down
-docker compose up
-```
+Add `GEMINI_API_KEY` to `ProjectSourceCode/.env`, then restart Docker Compose
 
 > Protected actions fail
 
